@@ -1,11 +1,13 @@
-import { app, shell, BrowserWindow, systemPreferences } from 'electron'
+import { app, shell, BrowserWindow, systemPreferences, screen, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import Store from 'electron-store'
 import icon from '../../resources/icon.png?asset'
 import { SwiftBridge, SwiftBridgeError } from './swift-bridge'
 import { MessageDiffer } from './differ'
 import { CharacterEngine } from './characters'
-import type { Message } from '../shared/types'
+import { characters as presetCharacters } from '../characters'
+import type { Message, AppSettings, CharacterConfig } from '../shared/types'
 
 const bridge = new SwiftBridge()
 const differ = new MessageDiffer()
@@ -13,6 +15,14 @@ let engine: CharacterEngine | null = null
 let pollInterval: NodeJS.Timeout | null = null
 let claudePid: number | null = null
 let polling = false
+let mainWindow: BrowserWindow | null = null
+let positionInterval: NodeJS.Timeout | null = null
+
+const store = new Store<AppSettings>({
+  defaults: {
+    activeCharacters: presetCharacters,
+  },
+})
 
 // Track recent messages for context window
 let recentMessages: Message[] = []
@@ -39,6 +49,7 @@ function handleNewMessages(messages: Message[]): void {
     engine.generateCommentary(lastMsg, recentMessages).then((comments) => {
       for (const comment of comments) {
         console.log(`[${comment.characterName}] "${comment.text}"`)
+        mainWindow?.webContents.send('comment:new', comment)
       }
     }).catch((err) => {
       console.error('[Commentary] Error:', err)
@@ -68,12 +79,40 @@ async function pollConversation(): Promise<void> {
   }
 }
 
+function positionOverlayBesideClaude(): void {
+  if (!mainWindow || !claudePid) return
+
+  try {
+    const primaryDisplay = screen.getPrimaryDisplay()
+    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize
+    const { x: workX, y: workY } = primaryDisplay.workArea
+
+    const overlayWidth = 380
+    const overlayHeight = 600
+
+    // Position at the right edge of the screen
+    const x = workX + screenWidth - overlayWidth - 8
+    const y = workY + Math.round((screenHeight - overlayHeight) / 2)
+
+    mainWindow.setBounds({ x, y, width: overlayWidth, height: overlayHeight })
+  } catch (err) {
+    console.warn('[Position] Error positioning overlay:', err)
+  }
+}
+
 function createWindow(): void {
-  const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+  mainWindow = new BrowserWindow({
+    width: 380,
+    height: 600,
     show: false,
-    autoHideMenuBar: true,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    hasShadow: false,
+    skipTaskbar: true,
+    resizable: false,
+    vibrancy: 'under-window',
+    visualEffectState: 'active',
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -82,13 +121,17 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
+    positionOverlayBesideClaude()
+    mainWindow!.show()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
   })
+
+  // Re-check position periodically
+  positionInterval = setInterval(positionOverlayBesideClaude, 5000)
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
@@ -106,7 +149,7 @@ async function startAccessibilityReader(): Promise<void> {
   if (!apiKey) {
     console.warn('[PeanutGallery] ANTHROPIC_API_KEY not set — commentary disabled')
   } else {
-    engine = new CharacterEngine(apiKey)
+    engine = new CharacterEngine(apiKey, store.get('activeCharacters'))
     console.log('[PeanutGallery] Character engine initialized')
   }
 
@@ -156,6 +199,24 @@ async function startAccessibilityReader(): Promise<void> {
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.peanutgallery.app')
 
+  // Register IPC handlers
+  ipcMain.handle('settings:get', (): AppSettings => {
+    return {
+      activeCharacters: store.get('activeCharacters'),
+    }
+  })
+
+  ipcMain.handle('settings:set', (_event, settings: AppSettings): void => {
+    store.set('activeCharacters', settings.activeCharacters)
+    if (engine) {
+      engine.setCharacters(settings.activeCharacters)
+    }
+  })
+
+  ipcMain.handle('characters:get-presets', (): CharacterConfig[] => {
+    return presetCharacters
+  })
+
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
@@ -178,6 +239,10 @@ app.on('before-quit', () => {
   if (pollInterval) {
     clearInterval(pollInterval)
     pollInterval = null
+  }
+  if (positionInterval) {
+    clearInterval(positionInterval)
+    positionInterval = null
   }
   differ.destroy()
   bridge.destroy()

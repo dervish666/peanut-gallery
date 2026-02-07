@@ -1,5 +1,4 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { characters } from '../characters'
 import type { Message, CharacterConfig, CommentEvent } from '../shared/types'
 
 const MODEL = 'claude-haiku-4-5-20251001'
@@ -8,12 +7,18 @@ const MAX_MESSAGE_CHARS = 500
 
 export class CharacterEngine {
   private client: Anthropic
+  private characters: CharacterConfig[]
   private lastCommentTime: number = 0
   private cooldownMs: number = 10000
   private roundCounter: number = 0
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, characters: CharacterConfig[]) {
     this.client = new Anthropic({ apiKey })
+    this.characters = characters
+  }
+
+  setCharacters(characters: CharacterConfig[]): void {
+    this.characters = characters
   }
 
   async generateCommentary(
@@ -37,7 +42,7 @@ export class CharacterEngine {
       text: m.text.length > MAX_MESSAGE_CHARS ? m.text.slice(0, MAX_MESSAGE_CHARS) + '...' : m.text,
     }))
 
-    for (const character of characters) {
+    for (const character of this.characters) {
       // Gate check: first character uses reactionChance, subsequent use reactionToOtherChance if there are previous comments
       const chance =
         previousComments.length > 0 ? character.reactionToOtherChance : character.reactionChance
@@ -52,6 +57,7 @@ export class CharacterEngine {
             id: `${roundId}-${character.id}`,
             characterId: character.id,
             characterName: character.name,
+            color: character.color,
             text,
             roundId,
             timestamp: Date.now(),

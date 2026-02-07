@@ -58,7 +58,20 @@ export interface CommentEvent {
   id: string
   characterId: string
   characterName: string
+  color: string
   text: string
   roundId: string
   timestamp: number
+}
+
+export interface AppSettings {
+  activeCharacters: CharacterConfig[]
+}
+
+export interface PeanutGalleryAPI {
+  onComment: (callback: (event: CommentEvent) => void) => () => void
+  onStatus: (callback: (status: string) => void) => () => void
+  getSettings: () => Promise<AppSettings>
+  setSettings: (settings: AppSettings) => Promise<void>
+  getPresetCharacters: () => Promise<CharacterConfig[]>
 }

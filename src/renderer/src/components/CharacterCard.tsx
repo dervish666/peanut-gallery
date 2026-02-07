@@ -1,0 +1,125 @@
+import { useState } from 'react'
+import type { CharacterConfig } from '../../../shared/types'
+
+interface CharacterCardProps {
+  character: CharacterConfig
+  onChange: (updated: CharacterConfig) => void
+  onRemove: () => void
+}
+
+export function CharacterCard({ character, onChange, onRemove }: CharacterCardProps): React.JSX.Element {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <div
+      className="rounded-lg p-2.5 text-[12px]"
+      style={{
+        backgroundColor: 'rgba(255,255,255,0.07)',
+        borderLeft: `2px solid ${character.color}`,
+      }}
+    >
+      {/* Header row */}
+      <div className="flex items-center justify-between">
+        <button
+          className="flex items-center gap-1.5 text-left"
+          onClick={() => setExpanded(!expanded)}
+        >
+          <span className="font-semibold text-white/90">{character.name}</span>
+          <span className="text-white/40 text-[10px]">{expanded ? '\u25B2' : '\u25BC'}</span>
+        </button>
+        <button
+          onClick={onRemove}
+          className="text-white/30 hover:text-red-400 text-[10px] px-1"
+        >
+          \u2715
+        </button>
+      </div>
+
+      {/* Expanded settings */}
+      {expanded && (
+        <div className="mt-2 flex flex-col gap-2">
+          <label className="flex flex-col gap-0.5">
+            <span className="text-white/40 text-[10px] uppercase tracking-wider">Name</span>
+            <input
+              type="text"
+              value={character.name}
+              onChange={(e) => onChange({ ...character, name: e.target.value })}
+              className="bg-white/5 rounded px-2 py-1 text-white/90 text-[12px] outline-none focus:bg-white/10"
+            />
+          </label>
+
+          <label className="flex items-center gap-2">
+            <span className="text-white/40 text-[10px] uppercase tracking-wider">Color</span>
+            <input
+              type="color"
+              value={character.color}
+              onChange={(e) => onChange({ ...character, color: e.target.value })}
+              className="w-6 h-6 rounded cursor-pointer bg-transparent border-0"
+            />
+          </label>
+
+          <label className="flex flex-col gap-0.5">
+            <span className="text-white/40 text-[10px] uppercase tracking-wider">
+              Reaction chance ({Math.round(character.reactionChance * 100)}%)
+            </span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={character.reactionChance}
+              onChange={(e) =>
+                onChange({ ...character, reactionChance: parseFloat(e.target.value) })
+              }
+              className="accent-white/60"
+            />
+          </label>
+
+          <label className="flex flex-col gap-0.5">
+            <span className="text-white/40 text-[10px] uppercase tracking-wider">
+              React to others ({Math.round(character.reactionToOtherChance * 100)}%)
+            </span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={character.reactionToOtherChance}
+              onChange={(e) =>
+                onChange({ ...character, reactionToOtherChance: parseFloat(e.target.value) })
+              }
+              className="accent-white/60"
+            />
+          </label>
+
+          <label className="flex flex-col gap-0.5">
+            <span className="text-white/40 text-[10px] uppercase tracking-wider">
+              Temperature ({character.temperature.toFixed(2)})
+            </span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={character.temperature}
+              onChange={(e) =>
+                onChange({ ...character, temperature: parseFloat(e.target.value) })
+              }
+              className="accent-white/60"
+            />
+          </label>
+
+          <label className="flex flex-col gap-0.5">
+            <span className="text-white/40 text-[10px] uppercase tracking-wider">System prompt</span>
+            <textarea
+              value={character.systemPrompt}
+              onChange={(e) => onChange({ ...character, systemPrompt: e.target.value })}
+              rows={4}
+              className="bg-white/5 rounded px-2 py-1 text-white/80 text-[11px] leading-snug outline-none focus:bg-white/10 resize-y"
+            />
+          </label>
+        </div>
+      )}
+    </div>
+  )
+}
