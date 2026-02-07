@@ -43,6 +43,8 @@ export class CharacterEngine {
     }))
 
     for (const character of this.characters) {
+      if (character.enabled === false) continue
+
       // Gate check: first character uses reactionChance, subsequent use reactionToOtherChance if there are previous comments
       const chance =
         previousComments.length > 0 ? character.reactionToOtherChance : character.reactionChance

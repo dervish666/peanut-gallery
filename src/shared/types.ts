@@ -47,6 +47,7 @@ export interface CharacterConfig {
   id: string
   name: string
   color: string
+  enabled: boolean
   systemPrompt: string
   temperature: number
   maxTokens: number

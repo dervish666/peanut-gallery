@@ -16,6 +16,7 @@ function makeCustomCharacter(): CharacterConfig {
     id: `custom-${Date.now()}`,
     name: 'New Character',
     color: '#888888',
+    enabled: true,
     systemPrompt:
       'You are a witty commentator watching a conversation between a human and an AI. Keep responses to 1-2 sentences.',
     temperature: 0.9,
@@ -35,6 +36,7 @@ export function SettingsDrawer({
   const [draft, setDraft] = useState<CharacterConfig[]>(settings.activeCharacters)
   const [showPresetPicker, setShowPresetPicker] = useState(false)
 
+  const presetIds = new Set(presets.map((p) => p.id))
   const activeIds = new Set(draft.map((c) => c.id))
   const availablePresets = presets.filter((p) => !activeIds.has(p.id))
 
@@ -99,8 +101,10 @@ export function SettingsDrawer({
               <CharacterCard
                 key={character.id}
                 character={character}
+                isCustom={!presetIds.has(character.id)}
                 onChange={(updated) => updateCharacter(i, updated)}
                 onRemove={() => removeCharacter(i)}
+                onDelete={() => removeCharacter(i)}
               />
             ))}
 

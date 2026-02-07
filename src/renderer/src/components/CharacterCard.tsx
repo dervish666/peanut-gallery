@@ -3,11 +3,19 @@ import type { CharacterConfig } from '../../../shared/types'
 
 interface CharacterCardProps {
   character: CharacterConfig
+  isCustom: boolean
   onChange: (updated: CharacterConfig) => void
   onRemove: () => void
+  onDelete?: () => void
 }
 
-export function CharacterCard({ character, onChange, onRemove }: CharacterCardProps): React.JSX.Element {
+export function CharacterCard({
+  character,
+  isCustom,
+  onChange,
+  onRemove,
+  onDelete,
+}: CharacterCardProps): React.JSX.Element {
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -15,7 +23,8 @@ export function CharacterCard({ character, onChange, onRemove }: CharacterCardPr
       className="rounded-lg p-2.5 text-[12px]"
       style={{
         backgroundColor: 'rgba(255,255,255,0.07)',
-        borderLeft: `2px solid ${character.color}`,
+        borderLeft: `2px solid ${character.enabled ? character.color : 'rgba(255,255,255,0.15)'}`,
+        opacity: character.enabled ? 1 : 0.5,
       }}
     >
       {/* Header row */}
@@ -27,12 +36,39 @@ export function CharacterCard({ character, onChange, onRemove }: CharacterCardPr
           <span className="font-semibold text-white/90">{character.name}</span>
           <span className="text-white/40 text-[10px]">{expanded ? '\u25B2' : '\u25BC'}</span>
         </button>
-        <button
-          onClick={onRemove}
-          className="text-white/30 hover:text-red-400 text-[10px] px-1"
-        >
-          \u2715
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Enable/disable toggle */}
+          <button
+            onClick={() => onChange({ ...character, enabled: !character.enabled })}
+            className={`w-7 h-4 rounded-full relative transition-colors ${
+              character.enabled ? 'bg-green-500/60' : 'bg-white/15'
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${
+                character.enabled ? 'left-3.5' : 'left-0.5'
+              }`}
+            />
+          </button>
+          {/* Remove (preset) or Delete (custom) */}
+          {isCustom ? (
+            <button
+              onClick={onDelete}
+              className="text-white/30 hover:text-red-400 text-[10px] px-1"
+              title="Delete character"
+            >
+              {'\u2715'}
+            </button>
+          ) : (
+            <button
+              onClick={onRemove}
+              className="text-white/30 hover:text-white/50 text-[10px] px-1"
+              title="Remove from roster"
+            >
+              {'\u2212'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Expanded settings */}
