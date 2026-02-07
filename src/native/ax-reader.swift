@@ -319,15 +319,6 @@ func listApps() -> AppsResult {
 // MARK: - Main
 
 func main() {
-    // Check accessibility permissions
-    if !AXIsProcessTrusted() {
-        emitError(
-            code: "accessibility_denied",
-            message: "Accessibility permission not granted. Go to System Settings > Privacy & Security > Accessibility and add this app."
-        )
-        // Don't exit — the parent process may want to prompt the user and retry
-    }
-
     let parsers: [String: ConversationParser] = [
         ClaudeDesktopParser.bundleIdentifier: ClaudeDesktopParser()
     ]

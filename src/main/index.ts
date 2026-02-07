@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, dialog } from 'electron'
+import { app, shell, BrowserWindow, dialog, systemPreferences } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -36,6 +36,10 @@ function createWindow(): void {
 }
 
 async function startAccessibilityReader(): Promise<void> {
+  // Request accessibility if not yet granted (prompts system dialog)
+  const isTrusted = systemPreferences.isTrustedAccessibilityClient(true)
+  console.log(`[PeanutGallery] Accessibility trusted: ${isTrusted}`)
+
   try {
     await bridge.start()
     console.log('[PeanutGallery] Swift bridge started')
@@ -57,23 +61,10 @@ async function startAccessibilityReader(): Promise<void> {
     const conversation = await bridge.readConversation(claudeApp.pid)
     console.log('[PeanutGallery] Conversation:', JSON.stringify(conversation, null, 2))
   } catch (err) {
-    if (err instanceof SwiftBridgeError && err.code === 'accessibility_denied') {
-      console.error('[PeanutGallery] Accessibility permission denied')
-      dialog.showMessageBox({
-        type: 'warning',
-        title: 'Accessibility Permission Required',
-        message:
-          'Peanut Gallery needs Accessibility permission to read chat conversations.\n\n' +
-          'Please go to System Settings → Privacy & Security → Accessibility and grant permission to Peanut Gallery.',
-        buttons: ['Open System Settings', 'Later'],
-        defaultId: 0
-      }).then((result) => {
-        if (result.response === 0) {
-          shell.openExternal(
-            'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
-          )
-        }
-      })
+    if (err instanceof SwiftBridgeError && (err.code === 'no_window' || err.code === 'no_webarea' || err.code === 'no_main_content')) {
+      console.error(`[PeanutGallery] AX navigation failed (${err.code}): ${err.message}`)
+      console.error('[PeanutGallery] This may mean accessibility permission is not working for the child process.')
+      console.error('[PeanutGallery] Try: Remove Electron.app from Accessibility settings, restart app, re-add when prompted.')
     } else {
       console.error('[PeanutGallery] Error:', err)
     }
