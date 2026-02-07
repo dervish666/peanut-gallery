@@ -152,20 +152,10 @@ struct ClaudeDesktopParser: ConversationParser {
             return nil
         }
 
-        // Step 5: Parse messages
-        let messageGroups = getAXChildren(scrollArea)
+        // Step 5: Parse messages by recursively finding elements with message classes
         var messages: [Message] = []
         var index = 0
-
-        for group in messageGroups {
-            if let message = parseUserMessage(from: group, index: index) {
-                messages.append(message)
-                index += 1
-            } else if let message = parseAssistantMessage(from: group, index: index) {
-                messages.append(message)
-                index += 1
-            }
-        }
+        collectMessages(from: scrollArea, messages: &messages, index: &index)
 
         return ConversationResult(
             type: "conversation",
@@ -220,38 +210,44 @@ struct ClaudeDesktopParser: ConversationParser {
 
     // MARK: - Message Parsing
 
-    private func descendantHasClassContaining(_ element: AXUIElement, _ substring: String) -> Bool {
-        if hasClassContaining(element, substring) { return true }
+    /// Recursively walk the tree from the scroll area to find message elements.
+    /// Only match elements whose OWN classes contain the message identifiers.
+    /// This avoids matching high-level wrapper divs that merely contain messages.
+    private func collectMessages(from element: AXUIElement, messages: inout [Message], index: inout Int) {
+        let classes = getDOMClassList(element)
+
+        // Check own classes for user message
+        if classes.contains(where: { $0.contains("font-user-message") }) {
+            let text = collectStaticText(from: element).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !text.isEmpty {
+                messages.append(Message(role: "user", text: text, timestamp: nil, index: index))
+                index += 1
+            }
+            return // don't recurse into matched message
+        }
+
+        // Check own classes for assistant response — use exact match to avoid
+        // matching "font-claude-response-body" (which is a child element)
+        if classes.contains("font-claude-response") || classes.contains("!font-claude-response") {
+            var text = ""
+            if let responseSection = findElementWithClassContaining(in: element, substring: "row-start-2") {
+                text = extractResponseText(from: responseSection)
+            }
+            if text.isEmpty {
+                text = collectStaticText(from: element)
+            }
+            text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !text.isEmpty {
+                messages.append(Message(role: "assistant", text: text, timestamp: nil, index: index))
+                index += 1
+            }
+            return // don't recurse into matched message
+        }
+
+        // Not a message element — recurse into children
         for child in getAXChildren(element) {
-            if descendantHasClassContaining(child, substring) { return true }
+            collectMessages(from: child, messages: &messages, index: &index)
         }
-        return false
-    }
-
-    private func parseUserMessage(from group: AXUIElement, index: Int) -> Message? {
-        guard descendantHasClassContaining(group, "font-user-message") else { return nil }
-
-        let text = extractTextFromElement(group)
-        let timestamp = extractTimestamp(after: group)
-
-        return Message(role: "user", text: text, timestamp: timestamp, index: index)
-    }
-
-    private func parseAssistantMessage(from group: AXUIElement, index: Int) -> Message? {
-        guard descendantHasClassContaining(group, "font-claude-response") else { return nil }
-
-        // Find the row-start-2 section (the displayed response, not thinking)
-        var text = ""
-        if let responseSection = findElementWithClassContaining(in: group, substring: "row-start-2") {
-            text = extractResponseText(from: responseSection)
-        } else {
-            // Fallback: extract all text from font-claude-response-body elements
-            text = extractTextFromElement(group)
-        }
-
-        let timestamp = extractTimestamp(after: group)
-
-        return Message(role: "assistant", text: text, timestamp: timestamp, index: index)
     }
 
     private func extractResponseText(from section: AXUIElement) -> String {
@@ -273,10 +269,6 @@ struct ClaudeDesktopParser: ConversationParser {
         }
     }
 
-    private func extractTextFromElement(_ element: AXUIElement) -> String {
-        return collectStaticText(from: element)
-    }
-
     private func collectStaticText(from element: AXUIElement) -> String {
         let role = getAXRole(element)
         if role == "AXStaticText" {
@@ -290,11 +282,6 @@ struct ClaudeDesktopParser: ConversationParser {
             }
         }
         return parts.joined(separator: "")
-    }
-
-    private func extractTimestamp(after element: AXUIElement) -> String? {
-        // For Phase 1, timestamps are skipped (optional field)
-        return nil
     }
 }
 

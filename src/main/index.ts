@@ -1,10 +1,72 @@
-import { app, shell, BrowserWindow, dialog, systemPreferences } from 'electron'
+import { app, shell, BrowserWindow, systemPreferences } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { SwiftBridge, SwiftBridgeError } from './swift-bridge'
+import { MessageDiffer } from './differ'
+import { CharacterEngine } from './characters'
+import type { Message } from '../shared/types'
 
 const bridge = new SwiftBridge()
+const differ = new MessageDiffer()
+let engine: CharacterEngine | null = null
+let pollInterval: NodeJS.Timeout | null = null
+let claudePid: number | null = null
+let polling = false
+
+// Track recent messages for context window
+let recentMessages: Message[] = []
+const MAX_RECENT = 8
+
+function addToRecent(msgs: Message[]): void {
+  recentMessages = [...recentMessages, ...msgs].slice(-MAX_RECENT)
+}
+
+function handleNewMessages(messages: Message[]): void {
+  if (messages.length === 0) return
+
+  addToRecent(messages)
+
+  for (const msg of messages) {
+    console.log(
+      `[Differ] New message (${msg.role}): "${msg.text.slice(0, 80)}${msg.text.length > 80 ? '...' : ''}"`,
+    )
+  }
+
+  // Generate commentary in the background — don't block the poll loop
+  if (engine) {
+    const lastMsg = messages[messages.length - 1]
+    engine.generateCommentary(lastMsg, recentMessages).then((comments) => {
+      for (const comment of comments) {
+        console.log(`[${comment.characterName}] "${comment.text}"`)
+      }
+    }).catch((err) => {
+      console.error('[Commentary] Error:', err)
+    })
+  }
+}
+
+async function pollConversation(): Promise<void> {
+  if (!claudePid || polling) return
+  polling = true
+
+  try {
+    const conversation = await bridge.readConversation(claudePid)
+    const newMessages = differ.diff(conversation.title, conversation.messages)
+
+    if (newMessages.length > 0) {
+      handleNewMessages(newMessages)
+    }
+  } catch (err) {
+    if (err instanceof SwiftBridgeError) {
+      console.warn(`[Poll] AX error (${err.code}): ${err.message}`)
+    } else {
+      console.error('[Poll] Unexpected error:', err)
+    }
+  } finally {
+    polling = false
+  }
+}
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -15,8 +77,8 @@ function createWindow(): void {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
-    }
+      sandbox: false,
+    },
   })
 
   mainWindow.on('ready-to-show', () => {
@@ -36,35 +98,55 @@ function createWindow(): void {
 }
 
 async function startAccessibilityReader(): Promise<void> {
-  // Request accessibility if not yet granted (prompts system dialog)
   const isTrusted = systemPreferences.isTrustedAccessibilityClient(true)
   console.log(`[PeanutGallery] Accessibility trusted: ${isTrusted}`)
+
+  // Initialize character engine — check both process.env and electron-vite's import.meta.env
+  const apiKey = import.meta.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY
+  if (!apiKey) {
+    console.warn('[PeanutGallery] ANTHROPIC_API_KEY not set — commentary disabled')
+  } else {
+    engine = new CharacterEngine(apiKey)
+    console.log('[PeanutGallery] Character engine initialized')
+  }
 
   try {
     await bridge.start()
     console.log('[PeanutGallery] Swift bridge started')
 
-    // List running apps
     const apps = await bridge.listApps()
-    console.log('[PeanutGallery] Running apps:', JSON.stringify(apps, null, 2))
-
-    // Look for Claude Desktop
     const claudeApp = apps.find((a) => a.bundleIdentifier === 'com.anthropic.claudefordesktop')
     if (!claudeApp) {
       console.log('[PeanutGallery] Claude Desktop not found among running apps')
       return
     }
 
-    console.log(`[PeanutGallery] Found Claude Desktop (PID ${claudeApp.pid}), reading conversation...`)
+    claudePid = claudeApp.pid
+    console.log(`[PeanutGallery] Found Claude Desktop (PID ${claudePid})`)
 
-    // Read the current conversation
-    const conversation = await bridge.readConversation(claudeApp.pid)
-    console.log('[PeanutGallery] Conversation:', JSON.stringify(conversation, null, 2))
+    // Wire up settled-message callback (debounced assistant messages)
+    differ.onMessageSettled((msg) => {
+      handleNewMessages([msg])
+    })
+
+    // Start polling
+    pollInterval = setInterval(pollConversation, 3000)
+    console.log('[PeanutGallery] Polling started (3s interval)')
+
+    // Do an initial poll immediately
+    await pollConversation()
   } catch (err) {
-    if (err instanceof SwiftBridgeError && (err.code === 'no_window' || err.code === 'no_webarea' || err.code === 'no_main_content')) {
+    if (
+      err instanceof SwiftBridgeError &&
+      (err.code === 'no_window' || err.code === 'no_webarea' || err.code === 'no_main_content')
+    ) {
       console.error(`[PeanutGallery] AX navigation failed (${err.code}): ${err.message}`)
-      console.error('[PeanutGallery] This may mean accessibility permission is not working for the child process.')
-      console.error('[PeanutGallery] Try: Remove Electron.app from Accessibility settings, restart app, re-add when prompted.')
+      console.error(
+        '[PeanutGallery] This may mean accessibility permission is not working for the child process.',
+      )
+      console.error(
+        '[PeanutGallery] Try: Remove Electron.app from Accessibility settings, restart app, re-add when prompted.',
+      )
     } else {
       console.error('[PeanutGallery] Error:', err)
     }
@@ -93,5 +175,10 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  if (pollInterval) {
+    clearInterval(pollInterval)
+    pollInterval = null
+  }
+  differ.destroy()
   bridge.destroy()
 })

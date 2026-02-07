@@ -42,3 +42,23 @@ export interface ErrorResponse extends AXResponse {
 }
 
 export type SwiftResponse = AppsResponse | ConversationResponse | ErrorResponse
+
+export interface CharacterConfig {
+  id: string
+  name: string
+  color: string
+  systemPrompt: string
+  temperature: number
+  maxTokens: number
+  reactionChance: number
+  reactionToOtherChance: number
+}
+
+export interface CommentEvent {
+  id: string
+  characterId: string
+  characterName: string
+  text: string
+  roundId: string
+  timestamp: number
+}

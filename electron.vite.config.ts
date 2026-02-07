@@ -4,7 +4,9 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
-  main: {},
+  main: {
+    envPrefix: 'ANTHROPIC_',
+  },
   preload: {},
   renderer: {
     resolve: {
