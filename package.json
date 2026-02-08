@@ -5,10 +5,10 @@
   "main": "./out/main/index.js",
   "author": "",
   "license": "MIT",
-  "homepage": "https://github.com/user/peanut-gallery",
+  "homepage": "https://github.com/dervish666/peanut-gallery",
   "repository": {
     "type": "git",
-    "url": "https://github.com/user/peanut-gallery.git"
+    "url": "https://github.com/dervish666/peanut-gallery.git"
   },
   "keywords": [
     "electron",

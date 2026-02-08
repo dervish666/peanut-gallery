@@ -29,7 +29,7 @@ Peanut Gallery watches your Claude Desktop conversations in real time using macO
 
 ```bash
 # Clone the repo
-git clone https://github.com/user/peanut-gallery.git
+git clone https://github.com/dervish666/peanut-gallery.git
 cd peanut-gallery
 
 # Install dependencies (also compiles the Swift helper)
