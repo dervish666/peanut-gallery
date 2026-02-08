@@ -84,15 +84,26 @@ export function CharacterCard({
             />
           </label>
 
-          <label className="flex items-center gap-2">
-            <span className="text-white/40 text-[10px] uppercase tracking-wider">Color</span>
-            <input
-              type="color"
-              value={character.color}
-              onChange={(e) => onChange({ ...character, color: e.target.value })}
-              className="w-6 h-6 rounded cursor-pointer bg-transparent border-0"
-            />
-          </label>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2">
+              <span className="text-white/40 text-[10px] uppercase tracking-wider">Color</span>
+              <input
+                type="color"
+                value={character.color}
+                onChange={(e) => onChange({ ...character, color: e.target.value })}
+                className="w-6 h-6 rounded cursor-pointer bg-transparent border-0"
+              />
+            </label>
+            <label className="flex items-center gap-2">
+              <span className="text-white/40 text-[10px] uppercase tracking-wider">Avatar</span>
+              <input
+                type="text"
+                value={character.avatar}
+                onChange={(e) => onChange({ ...character, avatar: e.target.value })}
+                className="w-8 bg-white/5 rounded px-1 py-0.5 text-center text-[14px] outline-none focus:bg-white/10"
+              />
+            </label>
+          </div>
 
           <label className="flex flex-col gap-0.5">
             <span className="text-white/40 text-[10px] uppercase tracking-wider">

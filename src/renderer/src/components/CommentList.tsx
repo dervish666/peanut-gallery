@@ -15,10 +15,14 @@ export function CommentList({ comments }: CommentListProps): React.JSX.Element {
   }, [comments.length])
 
   return (
-    <div className="flex flex-col gap-1.5 overflow-y-auto flex-1 px-4 py-2 scrollbar-thin">
+    <div className="flex flex-col gap-2.5 overflow-y-auto flex-1 py-2 scrollbar-thin overflow-x-hidden" style={{ paddingLeft: 4, paddingRight: 4 }}>
       <AnimatePresence initial={false}>
-        {comments.map((comment) => (
-          <CommentBubble key={comment.id} comment={comment} />
+        {comments.map((comment, index) => (
+          <CommentBubble
+            key={comment.id}
+            comment={comment}
+            side={index % 2 === 0 ? 'left' : 'right'}
+          />
         ))}
       </AnimatePresence>
       <div ref={bottomRef} />

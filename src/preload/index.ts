@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { CommentEvent, AppSettings, CharacterConfig } from '../shared/types'
+import type { CommentEvent, NowShowingEvent, AppSettings, CharacterConfig } from '../shared/types'
 
 const api = {
   onComment: (callback: (event: CommentEvent) => void): (() => void) => {
@@ -10,6 +10,15 @@ const api = {
     ipcRenderer.on('comment:new', handler)
     return () => {
       ipcRenderer.removeListener('comment:new', handler)
+    }
+  },
+  onNowShowing: (callback: (event: NowShowingEvent) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, event: NowShowingEvent): void => {
+      callback(event)
+    }
+    ipcRenderer.on('now-showing:update', handler)
+    return () => {
+      ipcRenderer.removeListener('now-showing:update', handler)
     }
   },
   onStatus: (callback: (status: string) => void): (() => void) => {
@@ -29,6 +38,9 @@ const api = {
   },
   getPresetCharacters: (): Promise<CharacterConfig[]> => {
     return ipcRenderer.invoke('characters:get-presets')
+  },
+  minimize: (): void => {
+    ipcRenderer.send('window:minimize')
   },
 }
 

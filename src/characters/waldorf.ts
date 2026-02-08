@@ -3,6 +3,7 @@ import type { CharacterConfig } from '../shared/types'
 export const waldorf: CharacterConfig = {
   id: 'waldorf',
   name: 'Waldorf',
+  avatar: '🎩',
   color: '#8B0000',
   enabled: true,
   systemPrompt: `CRITICAL CONSTRAINT: Your entire response must be ONE sentence under 25 words. No exceptions. Responses over 15 words are failures.

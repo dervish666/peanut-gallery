@@ -15,6 +15,7 @@ function makeCustomCharacter(): CharacterConfig {
   return {
     id: `custom-${Date.now()}`,
     name: 'New Character',
+    avatar: '🎤',
     color: '#888888',
     enabled: true,
     systemPrompt:

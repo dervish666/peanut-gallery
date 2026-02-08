@@ -7,7 +7,7 @@ import { SwiftBridge, SwiftBridgeError } from './swift-bridge'
 import { MessageDiffer } from './differ'
 import { CharacterEngine } from './characters'
 import { characters as presetCharacters } from '../characters'
-import type { Message, AppSettings, CharacterConfig } from '../shared/types'
+import type { Message, NowShowingEvent, AppSettings, CharacterConfig } from '../shared/types'
 
 const bridge = new SwiftBridge()
 const differ = new MessageDiffer()
@@ -28,8 +28,38 @@ const store = new Store<AppSettings>({
 let recentMessages: Message[] = []
 const MAX_RECENT = 8
 
+// Now Showing conversation tracking
+let currentConversationId: string | null = null
+let currentTitle: string | null = null
+let settledAssistantCount = 0
+let aiTitleRequested = false
+
 function addToRecent(msgs: Message[]): void {
   recentMessages = [...recentMessages, ...msgs].slice(-MAX_RECENT)
+}
+
+function makeConversationId(title: string): string {
+  const slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 30)
+  return `conv-${Date.now()}-${slug}`
+}
+
+function getEnabledCharacterNames(): string[] {
+  const chars = store.get('activeCharacters') || []
+  return chars.filter((c) => c.enabled !== false).map((c) => c.name)
+}
+
+function emitNowShowing(conversationId: string, title: string, isAiTitle: boolean): void {
+  const event: NowShowingEvent = {
+    conversationId,
+    title,
+    characterNames: getEnabledCharacterNames(),
+    isAiTitle,
+  }
+  mainWindow?.webContents.send('now-showing:update', event)
 }
 
 function handleNewMessages(messages: Message[], triggerCommentary: boolean): void {
@@ -64,6 +94,17 @@ async function pollConversation(): Promise<void> {
 
   try {
     const conversation = await bridge.readConversation(claudePid)
+
+    // Detect conversation switch or first conversation
+    if (conversation.title !== currentTitle) {
+      currentConversationId = makeConversationId(conversation.title)
+      currentTitle = conversation.title
+      settledAssistantCount = 0
+      aiTitleRequested = false
+      recentMessages = []
+      emitNowShowing(currentConversationId, conversation.title, false)
+    }
+
     const newMessages = differ.diff(conversation.title, conversation.messages)
 
     if (newMessages.length > 0) {
@@ -174,6 +215,23 @@ async function startAccessibilityReader(): Promise<void> {
     // so characters see the full user→assistant exchange
     differ.onMessageSettled((msg) => {
       handleNewMessages([msg], true)
+
+      // Track settled assistant messages for AI title generation
+      if (msg.role === 'assistant') {
+        settledAssistantCount++
+        if (settledAssistantCount >= 2 && !aiTitleRequested && engine && currentConversationId) {
+          aiTitleRequested = true
+          const convId = currentConversationId
+          const rawTitle = currentTitle || ''
+          engine.generateTitle(rawTitle, recentMessages).then((aiTitle) => {
+            if (aiTitle && convId === currentConversationId) {
+              emitNowShowing(convId, aiTitle, true)
+            }
+          }).catch((err) => {
+            console.error('[NowShowing] AI title error:', err)
+          })
+        }
+      }
     })
 
     // Start polling
@@ -222,6 +280,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle('characters:get-presets', (): CharacterConfig[] => {
     return presetCharacters
+  })
+
+  ipcMain.on('window:minimize', () => {
+    mainWindow?.minimize()
   })
 
   app.on('browser-window-created', (_, window) => {

@@ -59,6 +59,7 @@ export class CharacterEngine {
             id: `${roundId}-${character.id}`,
             characterId: character.id,
             characterName: character.name,
+            avatar: character.avatar || '🎤',
             color: character.color,
             text,
             roundId,
@@ -77,6 +78,37 @@ export class CharacterEngine {
     }
 
     return comments
+  }
+
+  async generateTitle(rawTitle: string, recentMessages: Message[]): Promise<string | null> {
+    const context = recentMessages
+      .slice(-5)
+      .map((m) => `[${m.role}]: ${m.text.slice(0, 200)}`)
+      .join('\n')
+
+    try {
+      const response = await this.client.messages.create({
+        model: MODEL,
+        max_tokens: 30,
+        temperature: 1.0,
+        system:
+          'You are a witty theatre marquee writer. Given a conversation title and snippet, produce a dramatic, funny theatre-style title in 6 words or fewer. No quotes, no punctuation besides exclamation marks. Just the title.',
+        messages: [
+          {
+            role: 'user',
+            content: `Original title: "${rawTitle}"\n\nConversation so far:\n${context}\n\nWrite the marquee title:`,
+          },
+        ],
+      })
+
+      const block = response.content[0]
+      if (block.type === 'text') {
+        return block.text.trim()
+      }
+    } catch (err) {
+      console.error('[CharacterEngine] Title generation error:', err)
+    }
+    return null
   }
 
   private async generateComment(
