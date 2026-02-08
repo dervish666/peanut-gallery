@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, systemPreferences, screen, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, systemPreferences, screen, ipcMain, nativeTheme } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import Store from 'electron-store'
@@ -32,7 +32,7 @@ function addToRecent(msgs: Message[]): void {
   recentMessages = [...recentMessages, ...msgs].slice(-MAX_RECENT)
 }
 
-function handleNewMessages(messages: Message[]): void {
+function handleNewMessages(messages: Message[], triggerCommentary: boolean): void {
   if (messages.length === 0) return
 
   addToRecent(messages)
@@ -43,8 +43,9 @@ function handleNewMessages(messages: Message[]): void {
     )
   }
 
-  // Generate commentary in the background — don't block the poll loop
-  if (engine) {
+  // Only generate commentary when an assistant response settles —
+  // reacting to the full exchange is funnier and avoids cooldown conflicts
+  if (triggerCommentary && engine) {
     const lastMsg = messages[messages.length - 1]
     engine.generateCommentary(lastMsg, recentMessages).then((comments) => {
       for (const comment of comments) {
@@ -66,7 +67,8 @@ async function pollConversation(): Promise<void> {
     const newMessages = differ.diff(conversation.title, conversation.messages)
 
     if (newMessages.length > 0) {
-      handleNewMessages(newMessages)
+      // User messages from diff — add to context but don't trigger commentary yet
+      handleNewMessages(newMessages, false)
     }
   } catch (err) {
     if (err instanceof SwiftBridgeError) {
@@ -168,8 +170,10 @@ async function startAccessibilityReader(): Promise<void> {
     console.log(`[PeanutGallery] Found Claude Desktop (PID ${claudePid})`)
 
     // Wire up settled-message callback (debounced assistant messages)
+    // This is where we trigger commentary — after the assistant finishes,
+    // so characters see the full user→assistant exchange
     differ.onMessageSettled((msg) => {
-      handleNewMessages([msg])
+      handleNewMessages([msg], true)
     })
 
     // Start polling
@@ -198,6 +202,9 @@ async function startAccessibilityReader(): Promise<void> {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.peanutgallery.app')
+
+  // Force dark mode so overlay text stays readable on any macOS appearance
+  nativeTheme.themeSource = 'dark'
 
   // Register IPC handlers
   ipcMain.handle('settings:get', (): AppSettings => {
