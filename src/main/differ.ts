@@ -19,8 +19,10 @@ export class MessageDiffer {
   diff(title: string, messages: Message[]): Message[] {
     const ready: Message[] = []
 
-    // Conversation switch: title changed or message count dropped
-    if (title !== this.lastTitle || messages.length < this.lastMessages.length) {
+    // Conversation switch: detected by title change only.
+    // Message count drops are not reliable — transient AX tree glitches
+    // can return fewer elements without an actual conversation change.
+    if (title !== this.lastTitle) {
       this.resetSettling()
       this.lastTitle = title
       this.lastMessages = [...messages]

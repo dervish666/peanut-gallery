@@ -183,14 +183,17 @@ function positionOverlayBesideClaude(): void {
   if (!mainWindow || !claudePid) return
 
   try {
-    const primaryDisplay = screen.getPrimaryDisplay()
-    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize
-    const { x: workX, y: workY } = primaryDisplay.workArea
+    // Use the display containing the cursor — the user is likely
+    // interacting with Claude on that screen
+    const cursorPoint = screen.getCursorScreenPoint()
+    const display = screen.getDisplayNearestPoint(cursorPoint)
+    const { width: screenWidth, height: screenHeight } = display.workAreaSize
+    const { x: workX, y: workY } = display.workArea
 
     const overlayWidth = 380
     const overlayHeight = 600
 
-    // Position at the right edge of the screen
+    // Position at the right edge of the active display
     const x = workX + screenWidth - overlayWidth - 8
     const y = workY + Math.round((screenHeight - overlayHeight) / 2)
 
