@@ -74,6 +74,13 @@ export class MessageDiffer {
     this.resetSettling()
     this.settlingText = msg.text
 
+    // Don't start the settle timer for thinking messages — the actual response
+    // hasn't arrived yet. Keep settlingText so handlePossibleStreaming will
+    // detect when the text changes to the real response and restart settling.
+    if (/^Thinking\b/i.test(msg.text)) {
+      return
+    }
+
     this.settleTimer = setTimeout(() => {
       this.settlingText = null
       this.settleTimer = null
