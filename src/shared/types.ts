@@ -60,7 +60,7 @@ export interface NowShowingEvent {
   conversationId: string
   title: string
   characterNames: string[]
-  isAiTitle: boolean
+  roast: string | null
 }
 
 export interface CommentEvent {

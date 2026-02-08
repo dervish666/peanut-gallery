@@ -6,48 +6,40 @@ interface NowShowingBannerProps {
   event: NowShowingEvent | null
 }
 
-const INITIAL_DISPLAY_MS = 4000
-const RESHOW_DISPLAY_MS = 2500
+const ROAST_DISPLAY_MS = 3500
 
 export function NowShowingBanner({ event }: NowShowingBannerProps): React.JSX.Element {
   const [visible, setVisible] = useState(false)
   const [displayEvent, setDisplayEvent] = useState<NowShowingEvent | null>(null)
+  const [roast, setRoast] = useState<string | null>(null)
   const [lastConvId, setLastConvId] = useState<string | null>(null)
-  const [showUntil, setShowUntil] = useState(0)
 
-  // When event prop changes, compute display timing
+  // When event prop changes, handle two-phase display
   useEffect(() => {
     if (!event) return
 
-    if (!event.isAiTitle) {
+    if (event.roast === null) {
+      // Phase 1: new conversation, show raw title, no auto-dismiss
       setLastConvId(event.conversationId)
       setDisplayEvent(event)
-      setShowUntil(Date.now() + INITIAL_DISPLAY_MS)
+      setRoast(null)
       setVisible(true)
     } else if (event.conversationId === lastConvId) {
-      setDisplayEvent(event)
-      setShowUntil(Date.now() + RESHOW_DISPLAY_MS)
-      setVisible(true)
+      // Phase 2: roast arrived for current conversation
+      setRoast(event.roast)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- lastConvId is intentionally excluded to avoid re-triggering
   }, [event])
 
-  // Auto-dismiss timer driven by showUntil
+  // Auto-dismiss timer: starts only after roast arrives
   useEffect(() => {
-    if (!visible || showUntil === 0) return
+    if (!visible || roast === null) return
 
-    const remaining = showUntil - Date.now()
-    if (remaining <= 0) {
-      setVisible(false)
-      return
-    }
-
-    const timer = setTimeout(() => setVisible(false), remaining)
+    const timer = setTimeout(() => setVisible(false), ROAST_DISPLAY_MS)
     return () => clearTimeout(timer)
-  }, [visible, showUntil])
+  }, [visible, roast])
 
   const dismiss = useCallback((): void => {
-    setShowUntil(0)
     setVisible(false)
   }, [])
 
@@ -91,9 +83,44 @@ export function NowShowingBanner({ event }: NowShowingBannerProps): React.JSX.El
             >
               {displayEvent.title}
             </div>
+
+            <AnimatePresence>
+              {roast && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.4, ease: 'easeOut' }}
+                  className="overflow-hidden"
+                >
+                  <div
+                    className="text-[9px] tracking-[0.15em] uppercase mt-1 mb-0.5"
+                    style={{ color: 'rgba(200, 164, 78, 0.55)' }}
+                  >
+                    ✦ Otherwise Known As ✦
+                  </div>
+                  <div
+                    className="text-sm leading-tight mb-1"
+                    style={{
+                      fontFamily: "'Playfair Display', Georgia, serif",
+                      fontStyle: 'italic',
+                      fontWeight: 400,
+                      color: '#e8c960',
+                    }}
+                  >
+                    &ldquo;{roast}&rdquo;
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {starring && (
-              <div className="text-[11px]" style={{ color: 'rgba(255, 255, 255, 0.45)' }}>
+              <div
+                className={`text-[11px] ${roast === null ? 'animate-pulse' : ''}`}
+                style={{ color: 'rgba(255, 255, 255, 0.45)' }}
+              >
                 Starring {starring}
+                {roast === null ? '...' : ''}
               </div>
             )}
           </div>

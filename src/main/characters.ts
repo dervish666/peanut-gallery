@@ -80,23 +80,18 @@ export class CharacterEngine {
     return comments
   }
 
-  async generateTitle(rawTitle: string, recentMessages: Message[]): Promise<string | null> {
-    const context = recentMessages
-      .slice(-5)
-      .map((m) => `[${m.role}]: ${m.text.slice(0, 200)}`)
-      .join('\n')
-
+  async roastTitle(rawTitle: string): Promise<string | null> {
     try {
       const response = await this.client.messages.create({
         model: MODEL,
         max_tokens: 30,
         temperature: 1.0,
         system:
-          'You are a witty theatre marquee writer. Given a conversation title and snippet, produce a dramatic, funny theatre-style title in 6 words or fewer. No quotes, no punctuation besides exclamation marks. Just the title.',
+          'You are a snarky theatre critic. Given a conversation title, roast or heckle it in one witty line of 8 words or fewer. No quotes. Just the roast.',
         messages: [
           {
             role: 'user',
-            content: `Original title: "${rawTitle}"\n\nConversation so far:\n${context}\n\nWrite the marquee title:`,
+            content: `Conversation title: "${rawTitle}"\n\nRoast it:`,
           },
         ],
       })
@@ -106,7 +101,7 @@ export class CharacterEngine {
         return block.text.trim()
       }
     } catch (err) {
-      console.error('[CharacterEngine] Title generation error:', err)
+      console.error('[CharacterEngine] Title roast error:', err)
     }
     return null
   }

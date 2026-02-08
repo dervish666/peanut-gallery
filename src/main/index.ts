@@ -31,8 +31,6 @@ const MAX_RECENT = 8
 // Now Showing conversation tracking
 let currentConversationId: string | null = null
 let currentTitle: string | null = null
-let settledAssistantCount = 0
-let aiTitleRequested = false
 
 function addToRecent(msgs: Message[]): void {
   recentMessages = [...recentMessages, ...msgs].slice(-MAX_RECENT)
@@ -52,12 +50,12 @@ function getEnabledCharacterNames(): string[] {
   return chars.filter((c) => c.enabled !== false).map((c) => c.name)
 }
 
-function emitNowShowing(conversationId: string, title: string, isAiTitle: boolean): void {
+function emitNowShowing(conversationId: string, title: string, roast: string | null): void {
   const event: NowShowingEvent = {
     conversationId,
     title,
     characterNames: getEnabledCharacterNames(),
-    isAiTitle,
+    roast,
   }
   mainWindow?.webContents.send('now-showing:update', event)
 }
@@ -99,10 +97,21 @@ async function pollConversation(): Promise<void> {
     if (conversation.title !== currentTitle) {
       currentConversationId = makeConversationId(conversation.title)
       currentTitle = conversation.title
-      settledAssistantCount = 0
-      aiTitleRequested = false
       recentMessages = []
-      emitNowShowing(currentConversationId, conversation.title, false)
+      emitNowShowing(currentConversationId, conversation.title, null)
+
+      // Fire roast immediately in the background
+      if (engine && currentConversationId) {
+        const convId = currentConversationId
+        const rawTitle = conversation.title
+        engine.roastTitle(rawTitle).then((roast) => {
+          if (roast && convId === currentConversationId) {
+            emitNowShowing(convId, rawTitle, roast)
+          }
+        }).catch((err) => {
+          console.error('[NowShowing] Title roast error:', err)
+        })
+      }
     }
 
     const newMessages = differ.diff(conversation.title, conversation.messages)
@@ -215,23 +224,6 @@ async function startAccessibilityReader(): Promise<void> {
     // so characters see the full user→assistant exchange
     differ.onMessageSettled((msg) => {
       handleNewMessages([msg], true)
-
-      // Track settled assistant messages for AI title generation
-      if (msg.role === 'assistant') {
-        settledAssistantCount++
-        if (settledAssistantCount >= 2 && !aiTitleRequested && engine && currentConversationId) {
-          aiTitleRequested = true
-          const convId = currentConversationId
-          const rawTitle = currentTitle || ''
-          engine.generateTitle(rawTitle, recentMessages).then((aiTitle) => {
-            if (aiTitle && convId === currentConversationId) {
-              emitNowShowing(convId, aiTitle, true)
-            }
-          }).catch((err) => {
-            console.error('[NowShowing] AI title error:', err)
-          })
-        }
-      }
     })
 
     // Start polling
@@ -283,7 +275,7 @@ app.whenReady().then(() => {
   })
 
   ipcMain.on('window:minimize', () => {
-    mainWindow?.minimize()
+    mainWindow?.hide()
   })
 
   app.on('browser-window-created', (_, window) => {
@@ -294,7 +286,11 @@ app.whenReady().then(() => {
   startAccessibilityReader()
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow()
+    } else if (mainWindow && !mainWindow.isVisible()) {
+      mainWindow.show()
+    }
   })
 })
 
