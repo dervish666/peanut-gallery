@@ -12,6 +12,15 @@ const api = {
       ipcRenderer.removeListener('comment:new', handler)
     }
   },
+  onCommentsClear: (callback: () => void): (() => void) => {
+    const handler = (): void => {
+      callback()
+    }
+    ipcRenderer.on('comments:clear', handler)
+    return () => {
+      ipcRenderer.removeListener('comments:clear', handler)
+    }
+  },
   onNowShowing: (callback: (event: NowShowingEvent) => void): (() => void) => {
     const handler = (_event: Electron.IpcRendererEvent, event: NowShowingEvent): void => {
       callback(event)

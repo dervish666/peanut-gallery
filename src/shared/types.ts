@@ -81,6 +81,7 @@ export interface AppSettings {
 
 export interface PeanutGalleryAPI {
   onComment: (callback: (event: CommentEvent) => void) => () => void
+  onCommentsClear: (callback: () => void) => () => void
   onNowShowing: (callback: (event: NowShowingEvent) => void) => () => void
   onStatus: (callback: (status: string) => void) => () => void
   getSettings: () => Promise<AppSettings>

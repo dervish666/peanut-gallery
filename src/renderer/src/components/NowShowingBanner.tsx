@@ -7,6 +7,7 @@ interface NowShowingBannerProps {
 }
 
 const ROAST_DISPLAY_MS = 3500
+const FALLBACK_DISMISS_MS = 8000
 
 export function NowShowingBanner({ event }: NowShowingBannerProps): React.JSX.Element {
   const [visible, setVisible] = useState(false)
@@ -39,6 +40,14 @@ export function NowShowingBanner({ event }: NowShowingBannerProps): React.JSX.El
     return () => clearTimeout(timer)
   }, [visible, roast])
 
+  // Fallback dismiss: if roast never arrives, dismiss after FALLBACK_DISMISS_MS
+  useEffect(() => {
+    if (!visible || roast !== null) return
+
+    const timer = setTimeout(() => setVisible(false), FALLBACK_DISMISS_MS)
+    return () => clearTimeout(timer)
+  }, [visible, roast])
+
   const dismiss = useCallback((): void => {
     setVisible(false)
   }, [])
@@ -57,7 +66,7 @@ export function NowShowingBanner({ event }: NowShowingBannerProps): React.JSX.El
           exit={{ y: -100, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
           onClick={dismiss}
-          className="absolute top-0 left-0 right-0 cursor-pointer select-none"
+          className="cursor-pointer select-none flex-shrink-0"
           style={{ zIndex: 5 }}
         >
           <div
@@ -104,7 +113,7 @@ export function NowShowingBanner({ event }: NowShowingBannerProps): React.JSX.El
                     style={{
                       fontFamily: "'Playfair Display', Georgia, serif",
                       fontStyle: 'italic',
-                      fontWeight: 400,
+                      fontWeight: 700,
                       color: '#e8c960',
                     }}
                   >

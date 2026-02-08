@@ -122,6 +122,7 @@ async function pollConversation(): Promise<void> {
       currentConversationId = makeConversationId(conversation.title)
       currentTitle = conversation.title
       recentMessages = []
+      mainWindow?.webContents.send('comments:clear')
       emitNowShowing(currentConversationId, conversation.title, null)
 
       // Fire roast, then after the banner dismisses, fire the intro
@@ -254,6 +255,18 @@ async function startAccessibilityReader(): Promise<void> {
     engine = new CharacterEngine(apiKey, store.get('activeCharacters'))
     console.log('[PeanutGallery] Character engine initialized')
   }
+
+  // Register error listeners to prevent unhandled EventEmitter errors crashing the process
+  bridge.on('error', (err) => {
+    console.error('[PeanutGallery] Bridge error:', err)
+  })
+  bridge.on('fatal', (err) => {
+    console.error('[PeanutGallery] Bridge fatal — helper crashed too many times:', err)
+    if (pollInterval) {
+      clearInterval(pollInterval)
+      pollInterval = null
+    }
+  })
 
   try {
     await bridge.start()

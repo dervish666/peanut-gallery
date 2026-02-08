@@ -11,8 +11,10 @@ export function CommentBubble({ comment, side }: CommentBubbleProps): React.JSX.
 
   return (
     <motion.div
+      layout
       initial={{ opacity: 0, x: isLeft ? -12 : 12 }}
       animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: isLeft ? -12 : 12 }}
       transition={{ duration: 0.2, ease: 'easeOut' }}
       className={`flex items-start gap-2 ${
         isLeft ? 'flex-row self-start' : 'flex-row-reverse self-end'
@@ -37,7 +39,12 @@ export function CommentBubble({ comment, side }: CommentBubbleProps): React.JSX.
         className={`min-w-0 rounded-lg text-[12px] leading-relaxed text-white/85 ${
           isLeft ? 'text-left' : 'text-right'
         }`}
-        style={{ backgroundColor: 'rgba(255,255,255,0.07)', padding: '8px 16px' }}
+        style={{
+          backgroundColor: 'rgba(255,255,255,0.07)',
+          padding: '8px 16px',
+          overflowWrap: 'break-word',
+          wordBreak: 'break-word',
+        }}
       >
         <span
           className="font-semibold text-[10px] uppercase tracking-wider block mb-0.5"

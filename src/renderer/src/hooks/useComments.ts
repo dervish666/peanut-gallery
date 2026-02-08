@@ -7,10 +7,16 @@ export function useComments(): { comments: CommentEvent[] } {
   const [comments, setComments] = useState<CommentEvent[]>([])
 
   useEffect(() => {
-    const unsubscribe = window.api.onComment((event) => {
+    const unsubComment = window.api.onComment((event) => {
       setComments((prev) => [...prev, event].slice(-MAX_COMMENTS))
     })
-    return unsubscribe
+    const unsubClear = window.api.onCommentsClear(() => {
+      setComments([])
+    })
+    return () => {
+      unsubComment()
+      unsubClear()
+    }
   }, [])
 
   return { comments }

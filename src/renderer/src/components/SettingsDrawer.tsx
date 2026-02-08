@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CharacterCard } from './CharacterCard'
 import type { AppSettings, CharacterConfig } from '../../../shared/types'
@@ -36,6 +36,24 @@ export function SettingsDrawer({
 }: SettingsDrawerProps): React.JSX.Element {
   const [draft, setDraft] = useState<CharacterConfig[]>(settings.activeCharacters)
   const [showPresetPicker, setShowPresetPicker] = useState(false)
+  const presetPickerRef = useRef<HTMLDivElement>(null)
+
+  // Sync draft when settings change externally (e.g. after save from another source)
+  useEffect(() => {
+    setDraft(settings.activeCharacters)
+  }, [settings])
+
+  // Close preset picker on click outside
+  useEffect(() => {
+    if (!showPresetPicker) return
+    function handleClick(e: MouseEvent): void {
+      if (presetPickerRef.current && !presetPickerRef.current.contains(e.target as Node)) {
+        setShowPresetPicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showPresetPicker])
 
   const presetIds = new Set(presets.map((p) => p.id))
   const activeIds = new Set(draft.map((c) => c.id))
@@ -112,7 +130,7 @@ export function SettingsDrawer({
             {/* Add buttons */}
             <div className="flex gap-2 mt-1">
               {availablePresets.length > 0 && (
-                <div className="relative flex-1">
+                <div ref={presetPickerRef} className="relative flex-1">
                   <button
                     onClick={() => setShowPresetPicker(!showPresetPicker)}
                     className="w-full rounded-lg py-1.5 text-[11px] text-white/50 hover:text-white/70 bg-white/5 hover:bg-white/10"
