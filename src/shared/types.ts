@@ -65,6 +65,7 @@ export interface NowShowingEvent {
 
 export interface CommentEvent {
   id: string
+  conversationId: string
   characterId: string
   characterName: string
   avatar: string

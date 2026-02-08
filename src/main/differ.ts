@@ -4,6 +4,7 @@ export class MessageDiffer {
   private lastMessages: Message[] = []
   private lastTitle: string = ''
   private settlingText: string | null = null
+  private settlingMessage: Message | null = null
   private settleTimer: NodeJS.Timeout | null = null
   private settledCallback: ((msg: Message) => void) | null = null
 
@@ -73,6 +74,7 @@ export class MessageDiffer {
   private startSettling(msg: Message): void {
     this.resetSettling()
     this.settlingText = msg.text
+    this.settlingMessage = msg
 
     // Don't start the settle timer for thinking messages — the actual response
     // hasn't arrived yet. Keep settlingText so handlePossibleStreaming will
@@ -82,10 +84,12 @@ export class MessageDiffer {
     }
 
     this.settleTimer = setTimeout(() => {
+      const settled = this.settlingMessage
       this.settlingText = null
+      this.settlingMessage = null
       this.settleTimer = null
-      if (this.settledCallback) {
-        this.settledCallback(msg)
+      if (this.settledCallback && settled) {
+        this.settledCallback(settled)
       }
     }, MessageDiffer.SETTLE_DELAY_MS)
   }
@@ -96,6 +100,7 @@ export class MessageDiffer {
       this.settleTimer = null
     }
     this.settlingText = null
+    this.settlingMessage = null
   }
 
   onMessageSettled(callback: (msg: Message) => void): void {

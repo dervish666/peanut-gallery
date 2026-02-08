@@ -1,4 +1,12 @@
-import { app, shell, BrowserWindow, systemPreferences, screen, ipcMain, nativeTheme } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  systemPreferences,
+  screen,
+  ipcMain,
+  nativeTheme,
+} from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import Store from 'electron-store'
@@ -63,7 +71,12 @@ function emitNowShowing(conversationId: string, title: string, roast: string | n
 function handleNewMessages(messages: Message[], triggerCommentary: boolean): void {
   if (messages.length === 0) return
 
-  addToRecent(messages)
+  // Only add to recent context on the diff path (triggerCommentary=false).
+  // The settle path (triggerCommentary=true) re-emits a message already
+  // added during diffing — adding it again would duplicate context.
+  if (!triggerCommentary) {
+    addToRecent(messages)
+  }
 
   for (const msg of messages) {
     console.log(
@@ -73,16 +86,27 @@ function handleNewMessages(messages: Message[], triggerCommentary: boolean): voi
 
   // Only generate commentary when an assistant response settles —
   // reacting to the full exchange is funnier and avoids cooldown conflicts
-  if (triggerCommentary && engine) {
+  if (triggerCommentary && engine && currentConversationId) {
     const lastMsg = messages[messages.length - 1]
-    engine.generateCommentary(lastMsg, recentMessages).then((comments) => {
-      for (const comment of comments) {
-        console.log(`[${comment.characterName}] "${comment.text}"`)
-        mainWindow?.webContents.send('comment:new', comment)
-      }
-    }).catch((err) => {
-      console.error('[Commentary] Error:', err)
-    })
+    const convId = currentConversationId
+    engine
+      .generateCommentary(lastMsg, recentMessages, convId)
+      .then((comments) => {
+        for (const comment of comments) {
+          // Drop stale commentary if conversation switched while generating
+          if (comment.conversationId !== currentConversationId) {
+            console.log(
+              `[Commentary] Dropping stale comment from ${comment.characterName} (old conv)`,
+            )
+            continue
+          }
+          console.log(`[${comment.characterName}] "${comment.text}"`)
+          mainWindow?.webContents.send('comment:new', comment)
+        }
+      })
+      .catch((err) => {
+        console.error('[Commentary] Error:', err)
+      })
   }
 }
 
@@ -100,17 +124,40 @@ async function pollConversation(): Promise<void> {
       recentMessages = []
       emitNowShowing(currentConversationId, conversation.title, null)
 
-      // Fire roast immediately in the background
+      // Fire roast, then after the banner dismisses, fire the intro
       if (engine && currentConversationId) {
         const convId = currentConversationId
         const rawTitle = conversation.title
-        engine.roastTitle(rawTitle).then((roast) => {
-          if (roast && convId === currentConversationId) {
-            emitNowShowing(convId, rawTitle, roast)
-          }
-        }).catch((err) => {
-          console.error('[NowShowing] Title roast error:', err)
-        })
+        engine
+          .roastTitle(rawTitle)
+          .then((roast) => {
+            if (roast && convId === currentConversationId) {
+              emitNowShowing(convId, rawTitle, roast)
+            }
+          })
+          .catch((err) => {
+            console.error('[NowShowing] Title roast error:', err)
+          })
+          .finally(() => {
+            // Wait for the marquee to dismiss (3.5s display + ~0.5s exit animation)
+            // before dropping the intro comment
+            if (convId !== currentConversationId) return
+            setTimeout(() => {
+              if (convId !== currentConversationId || !engine) return
+              const context = [...recentMessages]
+              engine
+                .generateIntro(rawTitle, context, convId)
+                .then((intro) => {
+                  if (intro && intro.conversationId === currentConversationId) {
+                    console.log(`[${intro.characterName}] (intro) "${intro.text}"`)
+                    mainWindow?.webContents.send('comment:new', intro)
+                  }
+                })
+                .catch((err) => {
+                  console.error('[Intro] Error:', err)
+                })
+            }, 4000)
+          })
       }
     }
 
@@ -182,7 +229,10 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  // Re-check position periodically
+  // Clear any existing position interval before creating a new one
+  if (positionInterval) {
+    clearInterval(positionInterval)
+  }
   positionInterval = setInterval(positionOverlayBesideClaude, 5000)
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
