@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 400" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="curtainGradR" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0%" stop-color="#5C1010"/>
+      <stop offset="30%" stop-color="#8B1A1A"/>
+      <stop offset="60%" stop-color="#B22222"/>
+      <stop offset="80%" stop-color="#8B1A1A"/>
+      <stop offset="100%" stop-color="#6B1515"/>
+    </linearGradient>
+    <linearGradient id="goldGradR" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0%" stop-color="#B8860B"/>
+      <stop offset="50%" stop-color="#DAA520"/>
+      <stop offset="100%" stop-color="#FFD700"/>
+    </linearGradient>
+    <linearGradient id="foldR" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0%" stop-color="rgba(0,0,0,0.3)"/>
+      <stop offset="20%" stop-color="rgba(0,0,0,0)"/>
+      <stop offset="40%" stop-color="rgba(255,255,255,0.08)"/>
+      <stop offset="60%" stop-color="rgba(0,0,0,0)"/>
+      <stop offset="80%" stop-color="rgba(255,255,255,0.05)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.15)"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Main curtain body - mirrored -->
+  <path d="M40,0 L5,0 Q10,20 8,40 Q12,80 7,120 Q11,160 9,200 Q13,240 8,280 Q11,320 7,360 L5,400 L40,400 Z" 
+        fill="url(#curtainGradR)"/>
+
+  <!-- Fold overlay -->
+  <path d="M40,0 L5,0 Q10,20 8,40 Q12,80 7,120 Q11,160 9,200 Q13,240 8,280 Q11,320 7,360 L5,400 L40,400 Z" 
+        fill="url(#foldR)"/>
+
+  <!-- Vertical fold lines -->
+  <line x1="30" y1="0" x2="30" y2="400" stroke="rgba(255,200,200,0.06)" stroke-width="3"/>
+  <line x1="20" y1="0" x2="20" y2="400" stroke="rgba(0,0,0,0.1)" stroke-width="2"/>
+  <line x1="12" y1="0" x2="12" y2="400" stroke="rgba(255,200,200,0.04)" stroke-width="2"/>
+
+  <!-- Gold trim on inner edge -->
+  <path d="M5,0 Q10,20 8,40 Q12,80 7,120 Q11,160 9,200 Q13,240 8,280 Q11,320 7,360 L5,400" 
+        stroke="url(#goldGradR)" stroke-width="2" fill="none"/>
+
+  <!-- Gold tieback -->
+  <ellipse cx="12" cy="130" rx="8" ry="4" fill="#DAA520" stroke="#B8860B" stroke-width="1"/>
+  <path d="M18,128 Q25,130 18,132" stroke="#DAA520" stroke-width="2" fill="none"/>
+</svg>

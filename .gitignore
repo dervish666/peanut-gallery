@@ -6,3 +6,6 @@ out
 *.log*
 resources/ax-reader
 .env
+.serena/
+.claude/
+*.zip

@@ -4,7 +4,22 @@
   "description": "AI heckler commentary for live chat conversations",
   "main": "./out/main/index.js",
   "author": "",
+  "license": "MIT",
   "homepage": "https://github.com/user/peanut-gallery",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/user/peanut-gallery.git"
+  },
+  "keywords": [
+    "electron",
+    "macos",
+    "accessibility",
+    "ai",
+    "claude",
+    "heckler",
+    "overlay",
+    "commentary"
+  ],
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
