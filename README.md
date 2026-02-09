@@ -2,7 +2,8 @@
 
 AI heckler commentary for your live chat conversations. Think Waldorf & Statler from the Muppets, but for Claude Desktop.
 
-<!-- ![Screenshot](docs/screenshot.png) -->
+<img width="380" height="408" alt="image" src="https://github.com/user-attachments/assets/bd45f8e1-2443-4b4b-824a-9d871fc02b23" />
+
 
 ## What Is This?
 
