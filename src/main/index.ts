@@ -358,6 +358,7 @@ app.whenReady().then(() => {
   const CLAUDE_BUNDLE_ID = 'com.anthropic.claudefordesktop'
   const SELF_BUNDLE_ID = 'com.peanutgallery.app'
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   bridge.on('app-activated', async (bundleId: string, _pid: number) => {
     if (!mainWindow || mainWindow.isDestroyed()) return
 

@@ -47,7 +47,11 @@ export interface ErrorResponse extends AXResponse {
   message: string
 }
 
-export type SwiftResponse = AppsResponse | ConversationResponse | AppActivatedResponse | ErrorResponse
+export type SwiftResponse =
+  | AppsResponse
+  | ConversationResponse
+  | AppActivatedResponse
+  | ErrorResponse
 
 export interface CharacterConfig {
   id: string
