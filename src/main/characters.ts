@@ -76,8 +76,11 @@ export class CharacterEngine {
         const block = response.content[0]
         const raw = block.type === 'text' ? block.text : ''
         plan = parseDirectorPlan(raw, enabledIds)
-      } catch {
-        // Director API failed — fall back to first enabled character
+        console.log(
+          `[Director] Plan: ${plan.cast.map((c) => `${c.characterId}→${c.reactTo}`).join(', ') || '(silence)'}`,
+        )
+      } catch (err) {
+        console.error('[Director] API error, falling back:', err)
         plan = {
           cast: [{ characterId: enabledIds[0], reactTo: 'conversation' as const, note: '' }],
         }

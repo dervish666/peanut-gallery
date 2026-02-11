@@ -49,6 +49,19 @@ describe('parseDirectorPlan', () => {
     expect(plan.cast).toHaveLength(1)
   })
 
+  it('strips markdown code fences from JSON response', () => {
+    const json = '```json\n' + JSON.stringify({
+      cast: [
+        { characterId: 'waldorf', reactTo: 'conversation', note: 'test' },
+        { characterId: 'statler', reactTo: 'waldorf', note: 'pile on' },
+      ],
+    }) + '\n```'
+    const plan = parseDirectorPlan(json, enabledIds)
+    expect(plan.cast).toHaveLength(2)
+    expect(plan.cast[0].characterId).toBe('waldorf')
+    expect(plan.cast[1].characterId).toBe('statler')
+  })
+
   it('replaces invalid reactTo with conversation', () => {
     const json = JSON.stringify({
       cast: [{ characterId: 'waldorf', reactTo: 'nobody', note: 'test' }],

@@ -84,10 +84,17 @@ export function parseDirectorPlan(raw: string, enabledCharacterIds: string[]): D
         : [],
   }
 
+  // Strip markdown code fences that LLMs commonly wrap JSON in
+  let cleaned = raw.trim()
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '')
+  }
+
   let parsed: unknown
   try {
-    parsed = JSON.parse(raw)
+    parsed = JSON.parse(cleaned)
   } catch {
+    console.warn('[Director] Failed to parse response:', raw.slice(0, 200))
     return fallback
   }
 
