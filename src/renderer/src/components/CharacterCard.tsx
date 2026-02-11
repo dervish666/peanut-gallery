@@ -107,33 +107,16 @@ export function CharacterCard({
 
           <label className="flex flex-col gap-0.5">
             <span className="text-white/40 text-[10px] uppercase tracking-wider">
-              Reaction chance ({Math.round(character.reactionChance * 100)}%)
+              Max tokens ({character.maxTokens})
             </span>
             <input
               type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={character.reactionChance}
+              min="20"
+              max="200"
+              step="10"
+              value={character.maxTokens}
               onChange={(e) =>
-                onChange({ ...character, reactionChance: parseFloat(e.target.value) })
-              }
-              className="accent-white/60"
-            />
-          </label>
-
-          <label className="flex flex-col gap-0.5">
-            <span className="text-white/40 text-[10px] uppercase tracking-wider">
-              React to others ({Math.round(character.reactionToOtherChance * 100)}%)
-            </span>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={character.reactionToOtherChance}
-              onChange={(e) =>
-                onChange({ ...character, reactionToOtherChance: parseFloat(e.target.value) })
+                onChange({ ...character, maxTokens: parseInt(e.target.value, 10) })
               }
               className="accent-white/60"
             />
@@ -151,6 +134,19 @@ export function CharacterCard({
               value={character.temperature}
               onChange={(e) => onChange({ ...character, temperature: parseFloat(e.target.value) })}
               className="accent-white/60"
+            />
+          </label>
+
+          <label className="flex flex-col gap-0.5">
+            <span className="text-white/40 text-[10px] uppercase tracking-wider">
+              Director summary
+            </span>
+            <input
+              type="text"
+              value={character.summary || ''}
+              onChange={(e) => onChange({ ...character, summary: e.target.value })}
+              placeholder="One-line personality for the director"
+              className="bg-white/5 rounded px-2 py-1 text-white/80 text-[11px] outline-none focus:bg-white/10"
             />
           </label>
 

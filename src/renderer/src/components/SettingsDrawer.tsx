@@ -18,6 +18,7 @@ function makeCustomCharacter(): CharacterConfig {
     avatar: '🎤',
     color: '#888888',
     enabled: true,
+    summary: 'Witty commentator with a unique perspective',
     systemPrompt:
       'You are a witty commentator watching a conversation between a human and an AI. Keep responses to 1-2 sentences.',
     temperature: 0.9,
