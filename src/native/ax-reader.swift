@@ -35,6 +35,12 @@ struct ErrorResult: Codable {
     let message: String
 }
 
+struct AppActivatedResult: Codable {
+    let type: String
+    let bundleId: String
+    let pid: Int32
+}
+
 struct Command: Codable {
     let command: String
     let pid: Int32?
@@ -61,6 +67,20 @@ func emitError(code: String, message: String) {
 func getAXAttribute(_ element: AXUIElement, _ attribute: String) -> AnyObject? {
     var value: AnyObject?
     let result = AXUIElementCopyAttributeValue(element, attribute as CFString, &value)
+    if result != .success && result != .noValue && result != .attributeUnsupported {
+        // Log meaningful AX errors (skip common "not found" ones)
+        if attribute == kAXWindowsAttribute as String || attribute == kAXChildrenAttribute as String {
+            let errName: String
+            switch result {
+            case .apiDisabled: errName = "apiDisabled"
+            case .cannotComplete: errName = "cannotComplete"
+            case .notImplemented: errName = "notImplemented"
+            case .invalidUIElement: errName = "invalidUIElement"
+            default: errName = "code(\(result.rawValue))"
+            }
+            fputs("[ax-reader] AX error on \(attribute): \(errName)\n", stderr)
+        }
+    }
     return result == .success ? value : nil
 }
 
@@ -310,49 +330,73 @@ func main() {
         ClaudeDesktopParser.bundleIdentifier: ClaudeDesktopParser()
     ]
 
-    // Read commands from stdin
-    while let line = readLine() {
-        guard let data = line.data(using: .utf8),
-              let command = try? JSONDecoder().decode(Command.self, from: data) else {
-            emitError(code: "invalid_command", message: "Could not parse command: \(line)")
-            continue
+    // Observe app activation events and push them to stdout
+    let workspace = NSWorkspace.shared
+    workspace.notificationCenter.addObserver(
+        forName: NSWorkspace.didActivateApplicationNotification,
+        object: nil,
+        queue: .main
+    ) { notification in
+        guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+              let bundleId = app.bundleIdentifier else { return }
+        emit(AppActivatedResult(type: "app-activated", bundleId: bundleId, pid: app.processIdentifier))
+    }
+
+    // Read commands from stdin on a background thread
+    DispatchQueue.global(qos: .userInteractive).async {
+        while let line = readLine() {
+            let lineCapture = line
+            DispatchQueue.main.async {
+                guard let data = lineCapture.data(using: .utf8),
+                      let command = try? JSONDecoder().decode(Command.self, from: data) else {
+                    emitError(code: "invalid_command", message: "Could not parse command: \(lineCapture)")
+                    return
+                }
+
+                switch command.command {
+                case "list-apps":
+                    emit(listApps())
+
+                case "read-conversation":
+                    guard let pid = command.pid else {
+                        emitError(code: "missing_pid", message: "read-conversation requires a pid field")
+                        return
+                    }
+
+                    let appElement = AXUIElementCreateApplication(pid)
+
+                    let workspace = NSWorkspace.shared
+                    let runningApp = workspace.runningApplications.first { $0.processIdentifier == pid }
+                    let bundleId = runningApp?.bundleIdentifier ?? ""
+
+                    if let parser = parsers[bundleId] {
+                        if let conversation = parser.parseConversation(from: appElement, pid: pid) {
+                            emit(conversation)
+                        }
+                    } else {
+                        emitError(
+                            code: "unsupported_app",
+                            message: "No parser available for \(runningApp?.localizedName ?? "unknown") (\(bundleId))"
+                        )
+                    }
+
+                case "stop":
+                    exit(0)
+
+                default:
+                    emitError(code: "unknown_command", message: "Unknown command: \(command.command)")
+                }
+            }
         }
 
-        switch command.command {
-        case "list-apps":
-            emit(listApps())
-
-        case "read-conversation":
-            guard let pid = command.pid else {
-                emitError(code: "missing_pid", message: "read-conversation requires a pid field")
-                continue
-            }
-
-            let appElement = AXUIElementCreateApplication(pid)
-
-            // Find which parser to use by matching bundle identifier
-            let workspace = NSWorkspace.shared
-            let runningApp = workspace.runningApplications.first { $0.processIdentifier == pid }
-            let bundleId = runningApp?.bundleIdentifier ?? ""
-
-            if let parser = parsers[bundleId] {
-                if let conversation = parser.parseConversation(from: appElement, pid: pid) {
-                    emit(conversation)
-                }
-            } else {
-                emitError(
-                    code: "unsupported_app",
-                    message: "No parser available for \(runningApp?.localizedName ?? "unknown") (\(bundleId))"
-                )
-            }
-
-        case "stop":
-            break
-
-        default:
-            emitError(code: "unknown_command", message: "Unknown command: \(command.command)")
+        // stdin closed — exit cleanly
+        DispatchQueue.main.async {
+            exit(0)
         }
     }
+
+    // Run the main run loop so NSWorkspace notifications are delivered
+    RunLoop.main.run()
 }
 
 main()
