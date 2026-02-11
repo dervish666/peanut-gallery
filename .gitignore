@@ -8,4 +8,5 @@ resources/ax-reader
 .env
 .serena/
 .claude/
+.worktrees/
 *.zip
