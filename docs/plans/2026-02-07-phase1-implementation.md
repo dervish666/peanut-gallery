@@ -15,6 +15,7 @@
 Since `npm create @quick-start/electron` is interactive and can't be automated cleanly, we'll manually create the project from the react-ts template files.
 
 **Files:**
+
 - Create: `package.json`
 - Create: `electron.vite.config.ts`
 - Create: `tsconfig.json`
@@ -104,11 +105,11 @@ export default defineConfig({
   renderer: {
     resolve: {
       alias: {
-        '@renderer': resolve('src/renderer/src')
-      }
+        '@renderer': resolve('src/renderer/src'),
+      },
     },
-    plugins: [react()]
-  }
+    plugins: [react()],
+  },
 })
 ```
 
@@ -174,22 +175,22 @@ export default defineConfig(
   {
     settings: {
       react: {
-        version: 'detect'
-      }
-    }
+        version: 'detect',
+      },
+    },
   },
   {
     files: ['**/*.{ts,tsx}'],
     plugins: {
       'react-hooks': eslintPluginReactHooks,
-      'react-refresh': eslintPluginReactRefresh
+      'react-refresh': eslintPluginReactRefresh,
     },
     rules: {
       ...eslintPluginReactHooks.configs.recommended.rules,
-      ...eslintPluginReactRefresh.configs.vite.rules
-    }
+      ...eslintPluginReactRefresh.configs.vite.rules,
+    },
   },
-  eslintConfigPrettier
+  eslintConfigPrettier,
 )
 ```
 
@@ -297,8 +298,8 @@ function createWindow(): void {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
-    }
+      sandbox: false,
+    },
   })
 
   mainWindow.on('ready-to-show', () => {
@@ -412,7 +413,7 @@ import App from './App'
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
-  </StrictMode>
+  </StrictMode>,
 )
 ```
 
@@ -489,6 +490,7 @@ git commit -m "feat: scaffold electron-vite project with React + TypeScript"
 ### Task 2: Swift Build Script
 
 **Files:**
+
 - Modify: `scripts/build-swift.sh`
 
 **Step 1: Write the build script**
@@ -532,6 +534,7 @@ git commit -m "feat: add Swift helper build script"
 ### Task 3: Shared Types
 
 **Files:**
+
 - Create: `src/shared/types.ts`
 
 **Step 1: Define the shared types**
@@ -607,9 +610,11 @@ git commit -m "feat: add shared TypeScript types for Swift bridge communication"
 ### Task 4: Swift Accessibility Helper
 
 **Files:**
+
 - Create: `src/native/ax-reader.swift`
 
 This is the largest and riskiest task. The Swift file implements:
+
 1. JSON stdin/stdout communication loop
 2. `list-apps` command
 3. `read-conversation` command with Claude Desktop parser
@@ -1021,6 +1026,7 @@ Run: `echo '{"command": "list-apps"}' | ./resources/ax-reader`
 Expected: JSON output listing running apps (may include an accessibility_denied error first if permissions haven't been granted). You should see a JSON line with `"type": "apps"` and an array of running applications.
 
 If you get the accessibility_denied error, grant permission:
+
 1. Open System Settings → Privacy & Security → Accessibility
 2. Add Terminal (or whatever runs the command)
 3. Re-run the command
@@ -1045,6 +1051,7 @@ git commit -m "feat: implement Swift accessibility helper for Claude Desktop"
 ### Task 5: Swift Bridge
 
 **Files:**
+
 - Create: `src/main/swift-bridge.ts`
 
 **Step 1: Implement the bridge**
@@ -1061,13 +1068,13 @@ import type {
   AppsResponse,
   ConversationResponse,
   AppInfo,
-  Conversation
+  Conversation,
 } from '../shared/types'
 
 export class SwiftBridgeError extends Error {
   constructor(
     public code: string,
-    message: string
+    message: string,
   ) {
     super(message)
     this.name = 'SwiftBridgeError'
@@ -1090,7 +1097,7 @@ export class SwiftBridge extends EventEmitter {
   async start(): Promise<void> {
     const binaryPath = this.getBinaryPath()
     this.process = spawn(binaryPath, [], {
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
     })
 
     this.process.stdout!.on('data', (data: Buffer) => {
@@ -1169,13 +1176,13 @@ export class SwiftBridge extends EventEmitter {
   async readConversation(pid: number): Promise<Conversation> {
     const response = (await this.sendCommand({
       command: 'read-conversation',
-      pid
+      pid,
     })) as ConversationResponse
     return {
       app: response.app,
       pid: response.pid,
       title: response.title,
-      messages: response.messages
+      messages: response.messages,
     }
   }
 
@@ -1207,6 +1214,7 @@ git commit -m "feat: implement Swift bridge for main process <-> ax-reader commu
 ### Task 6: Wire Up Main Process
 
 **Files:**
+
 - Modify: `src/main/index.ts`
 
 **Step 1: Add Swift bridge integration to main process**
@@ -1231,8 +1239,8 @@ function createWindow(): void {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
-    }
+      sandbox: false,
+    },
   })
 
   mainWindow.on('ready-to-show', () => {
@@ -1267,7 +1275,9 @@ async function startAccessibilityReader(): Promise<void> {
       return
     }
 
-    console.log(`[PeanutGallery] Found Claude Desktop (PID ${claudeApp.pid}), reading conversation...`)
+    console.log(
+      `[PeanutGallery] Found Claude Desktop (PID ${claudeApp.pid}), reading conversation...`,
+    )
 
     // Read the current conversation
     const conversation = await bridge.readConversation(claudeApp.pid)
@@ -1275,21 +1285,23 @@ async function startAccessibilityReader(): Promise<void> {
   } catch (err) {
     if (err instanceof SwiftBridgeError && err.code === 'accessibility_denied') {
       console.error('[PeanutGallery] Accessibility permission denied')
-      dialog.showMessageBox({
-        type: 'warning',
-        title: 'Accessibility Permission Required',
-        message:
-          'Peanut Gallery needs Accessibility permission to read chat conversations.\n\n' +
-          'Please go to System Settings → Privacy & Security → Accessibility and grant permission to Peanut Gallery.',
-        buttons: ['Open System Settings', 'Later'],
-        defaultId: 0
-      }).then((result) => {
-        if (result.response === 0) {
-          shell.openExternal(
-            'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
-          )
-        }
-      })
+      dialog
+        .showMessageBox({
+          type: 'warning',
+          title: 'Accessibility Permission Required',
+          message:
+            'Peanut Gallery needs Accessibility permission to read chat conversations.\n\n' +
+            'Please go to System Settings → Privacy & Security → Accessibility and grant permission to Peanut Gallery.',
+          buttons: ['Open System Settings', 'Later'],
+          defaultId: 0,
+        })
+        .then((result) => {
+          if (result.response === 0) {
+            shell.openExternal(
+              'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
+            )
+          }
+        })
     } else {
       console.error('[PeanutGallery] Error:', err)
     }
@@ -1335,6 +1347,7 @@ Prerequisites: Claude Desktop is running with an active conversation.
 Run: `npm run dev`
 
 Expected:
+
 1. Electron window opens with "Peanut Gallery" placeholder UI
 2. In the dev console (F12 / Cmd+Option+I), you should see:
    - `[PeanutGallery] Swift bridge started`
@@ -1358,6 +1371,7 @@ git commit -m "feat: wire Swift bridge into main process, log Claude Desktop mes
 This is an optional but recommended step — Tailwind is needed for Phase 3 UI work and is trivial to add now. We set it up but don't change any UI.
 
 **Files:**
+
 - Modify: `package.json` (add tailwindcss + @tailwindcss/vite)
 - Modify: `electron.vite.config.ts` (add tailwind vite plugin)
 - Modify: `src/renderer/src/assets/main.css` (add tailwind import)
@@ -1382,11 +1396,11 @@ export default defineConfig({
   renderer: {
     resolve: {
       alias: {
-        '@renderer': resolve('src/renderer/src')
-      }
+        '@renderer': resolve('src/renderer/src'),
+      },
     },
-    plugins: [react(), tailwindcss()]
-  }
+    plugins: [react(), tailwindcss()],
+  },
 })
 ```
 

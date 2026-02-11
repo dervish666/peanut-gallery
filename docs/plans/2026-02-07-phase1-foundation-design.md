@@ -68,6 +68,7 @@ Include the `ConversationParser` protocol from the start (zero cost, one protoco
 ### Compilation
 
 `scripts/build-swift.sh`:
+
 ```bash
 swiftc -framework Cocoa -framework ApplicationServices -O -o resources/ax-reader src/native/ax-reader.swift
 ```

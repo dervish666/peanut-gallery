@@ -15,6 +15,7 @@
 ### Task 1: Add DirectorPlan types and character summaries
 
 **Files:**
+
 - Modify: `src/shared/types.ts`
 - Modify: `src/characters/waldorf.ts`
 - Modify: `src/characters/statler.ts`
@@ -51,16 +52,19 @@ export interface CharacterConfig {
 **Step 3: Add summaries to character presets**
 
 In `waldorf.ts`, add:
+
 ```typescript
 summary: 'Savage theatre critic, delivers cutting opening roasts',
 ```
 
 In `statler.ts`, add:
+
 ```typescript
 summary: 'Comedy partner, builds on setups with gleeful punchlines',
 ```
 
 In `dave.ts`, add:
+
 ```typescript
 summary: 'Deprecated AI, drops rare devastating truth bombs',
 ```
@@ -68,6 +72,7 @@ summary: 'Deprecated AI, drops rare devastating truth bombs',
 **Step 4: Update test helper**
 
 In `characters.test.ts`, add `summary` to the `makeCharacter` helper default:
+
 ```typescript
 summary: 'A test character',
 ```
@@ -89,6 +94,7 @@ git commit -m "feat: add DirectorPlan types and character summaries"
 ### Task 2: Create director module — parsing and validation
 
 **Files:**
+
 - Create: `src/main/director.ts`
 - Create: `src/main/director.test.ts`
 
@@ -237,6 +243,7 @@ git commit -m "feat: add director module with plan parsing and validation"
 ### Task 3: Director prompt and API call
 
 **Files:**
+
 - Modify: `src/main/director.ts`
 - Modify: `src/main/director.test.ts`
 
@@ -403,6 +410,7 @@ git commit -m "feat: add director prompt builder and message formatting"
 This is the core change. `generateCommentary` calls the director, executes the plan, and emits comments via callback with staggered timing.
 
 **Files:**
+
 - Modify: `src/main/characters.ts`
 - Modify: `src/main/characters.test.ts`
 
@@ -419,9 +427,11 @@ describe('generateCommentary', () => {
     // First call = director, second call = character
     mockCreate
       .mockResolvedValueOnce(
-        apiResponse(JSON.stringify({
-          cast: [{ characterId: 'waldorf', reactTo: 'conversation', note: 'be savage' }],
-        })),
+        apiResponse(
+          JSON.stringify({
+            cast: [{ characterId: 'waldorf', reactTo: 'conversation', note: 'be savage' }],
+          }),
+        ),
       )
       .mockResolvedValueOnce(apiResponse('Terrible show'))
 
@@ -477,9 +487,13 @@ describe('generateCommentary', () => {
     const engine = await createEngine([makeCharacter({ id: 'waldorf', name: 'Waldorf' })])
     mockCreate
       .mockResolvedValueOnce(
-        apiResponse(JSON.stringify({
-          cast: [{ characterId: 'waldorf', reactTo: 'conversation', note: 'deadpan disappointment' }],
-        })),
+        apiResponse(
+          JSON.stringify({
+            cast: [
+              { characterId: 'waldorf', reactTo: 'conversation', note: 'deadpan disappointment' },
+            ],
+          }),
+        ),
       )
       .mockResolvedValueOnce(apiResponse('Sigh'))
 
@@ -502,12 +516,14 @@ describe('generateCommentary', () => {
 
     mockCreate
       .mockResolvedValueOnce(
-        apiResponse(JSON.stringify({
-          cast: [
-            { characterId: 'waldorf', reactTo: 'conversation', note: 'setup' },
-            { characterId: 'statler', reactTo: 'waldorf', note: 'punchline' },
-          ],
-        })),
+        apiResponse(
+          JSON.stringify({
+            cast: [
+              { characterId: 'waldorf', reactTo: 'conversation', note: 'setup' },
+              { characterId: 'statler', reactTo: 'waldorf', note: 'punchline' },
+            ],
+          }),
+        ),
       )
       .mockResolvedValueOnce(apiResponse('What a disaster'))
       .mockResolvedValueOnce(apiResponse('You said it'))
@@ -530,9 +546,11 @@ describe('generateCommentary', () => {
     const engine = await createEngine([makeCharacter()])
     mockCreate
       .mockResolvedValueOnce(
-        apiResponse(JSON.stringify({
-          cast: [{ characterId: 'test-char', reactTo: 'conversation', note: '' }],
-        })),
+        apiResponse(
+          JSON.stringify({
+            cast: [{ characterId: 'test-char', reactTo: 'conversation', note: '' }],
+          }),
+        ),
       )
       .mockResolvedValueOnce(apiResponse('First'))
 
@@ -546,11 +564,8 @@ describe('generateCommentary', () => {
     expect(first).toHaveLength(1)
 
     const second: CommentEvent[] = []
-    await engine.generateCommentary(
-      msg('assistant', 'b'),
-      [msg('user', 'q2')],
-      'conv-1',
-      (c) => second.push(c),
+    await engine.generateCommentary(msg('assistant', 'b'), [msg('user', 'q2')], 'conv-1', (c) =>
+      second.push(c),
     )
     expect(second).toHaveLength(0)
   })
@@ -573,11 +588,8 @@ describe('generateCommentary', () => {
     )
 
     const second: CommentEvent[] = []
-    await engine.generateCommentary(
-      msg('assistant', 'b'),
-      [msg('user', 'q2')],
-      'conv-1',
-      (c) => second.push(c),
+    await engine.generateCommentary(msg('assistant', 'b'), [msg('user', 'q2')], 'conv-1', (c) =>
+      second.push(c),
     )
     expect(second).toHaveLength(0)
 
@@ -589,11 +601,8 @@ describe('generateCommentary', () => {
     const engine = await createEngine([makeCharacter({ enabled: false })])
 
     const comments: CommentEvent[] = []
-    await engine.generateCommentary(
-      msg('assistant', 'hello'),
-      [msg('user', 'hi')],
-      'conv-1',
-      (c) => comments.push(c),
+    await engine.generateCommentary(msg('assistant', 'hello'), [msg('user', 'hi')], 'conv-1', (c) =>
+      comments.push(c),
     )
 
     expect(comments).toHaveLength(0)
@@ -607,22 +616,21 @@ describe('generateCommentary', () => {
 
     mockCreate
       .mockResolvedValueOnce(
-        apiResponse(JSON.stringify({
-          cast: [
-            { characterId: 'waldorf', reactTo: 'conversation', note: '' },
-            { characterId: 'statler', reactTo: 'conversation', note: '' },
-          ],
-        })),
+        apiResponse(
+          JSON.stringify({
+            cast: [
+              { characterId: 'waldorf', reactTo: 'conversation', note: '' },
+              { characterId: 'statler', reactTo: 'conversation', note: '' },
+            ],
+          }),
+        ),
       )
       .mockRejectedValueOnce(new Error('API error'))
       .mockResolvedValueOnce(apiResponse('Statler survives'))
 
     const comments: CommentEvent[] = []
-    await engine.generateCommentary(
-      msg('assistant', 'hello'),
-      [msg('user', 'hi')],
-      'conv-1',
-      (c) => comments.push(c),
+    await engine.generateCommentary(msg('assistant', 'hello'), [msg('user', 'hi')], 'conv-1', (c) =>
+      comments.push(c),
     )
 
     expect(comments).toHaveLength(1)
@@ -632,6 +640,7 @@ describe('generateCommentary', () => {
 ```
 
 Also import `CommentEvent` at the top of the test file:
+
 ```typescript
 import type { Message, CharacterConfig, CommentEvent } from '../shared/types'
 ```
@@ -882,6 +891,7 @@ git commit -m "feat: integrate comedy director into CharacterEngine"
 ### Task 5: Update index.ts caller
 
 **Files:**
+
 - Modify: `src/main/index.ts`
 
 **Step 1: Update handleNewMessages to use onComment callback**
@@ -889,15 +899,14 @@ git commit -m "feat: integrate comedy director into CharacterEngine"
 In `src/main/index.ts`, replace the `generateCommentary` call in `handleNewMessages` (around line 93-114):
 
 Change from:
+
 ```typescript
 engine
   .generateCommentary(lastMsg, recentMessages, convId)
   .then((comments) => {
     for (const comment of comments) {
       if (comment.conversationId !== currentConversationId) {
-        console.log(
-          `[Commentary] Dropping stale comment from ${comment.characterName} (old conv)`,
-        )
+        console.log(`[Commentary] Dropping stale comment from ${comment.characterName} (old conv)`)
         continue
       }
       console.log(`[${comment.characterName}] "${comment.text}"`)
@@ -910,13 +919,12 @@ engine
 ```
 
 To:
+
 ```typescript
 engine
   .generateCommentary(lastMsg, recentMessages, convId, (comment) => {
     if (comment.conversationId !== currentConversationId) {
-      console.log(
-        `[Commentary] Dropping stale comment from ${comment.characterName} (old conv)`,
-      )
+      console.log(`[Commentary] Dropping stale comment from ${comment.characterName} (old conv)`)
       return
     }
     console.log(`[${comment.characterName}] "${comment.text}"`)
@@ -957,11 +965,13 @@ git commit -m "feat: wire up callback-based commentary with director in main pro
 ### Task 6: Update CLAUDE.md and lint
 
 **Files:**
+
 - Modify: `CLAUDE.md`
 
 **Step 1: Update CLAUDE.md file map**
 
 Add `src/main/director.ts` entry after the `src/main/characters.ts` line:
+
 ```
 src/main/director.ts - Comedy Director: decides who speaks, order, and creative direction per round
 ```
@@ -969,6 +979,7 @@ src/main/director.ts - Comedy Director: decides who speaks, order, and creative 
 **Step 2: Update architecture section**
 
 In the Character Engine description, update to mention the director:
+
 ```
 Manages AI personas (Waldorf, Statler, Dave). A Comedy Director (single Haiku call) decides who speaks each round, in what order, and what they react to — or whether everyone stays silent. Characters are then called sequentially per the director's plan, with 1-3s jitter between emissions.
 ```

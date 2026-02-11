@@ -19,7 +19,15 @@ function App(): React.JSX.Element {
         {/* Drag region over the curtain top area */}
         <div
           className="absolute top-0 left-0 right-0 z-20"
-          style={{ height: 24, marginTop: -70, marginLeft: -35, marginRight: -35, WebkitAppRegion: 'drag' } as React.CSSProperties}
+          style={
+            {
+              height: 24,
+              marginTop: -70,
+              marginLeft: -35,
+              marginRight: -35,
+              WebkitAppRegion: 'drag',
+            } as React.CSSProperties
+          }
         />
 
         {/* Header controls — positioned in the curtain-top zone */}

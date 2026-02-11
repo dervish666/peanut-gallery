@@ -51,9 +51,11 @@ The user continues using their normal chat app. Peanut Gallery passively reads n
 ## Component 1: Swift Helper (`src/native/ax-reader.swift`)
 
 ### Purpose
+
 Read the accessibility tree of a target application and extract conversation messages as structured JSON.
 
 ### Compilation
+
 ```bash
 swiftc -framework Cocoa -framework ApplicationServices -o ax-reader src/native/ax-reader.swift
 ```
@@ -65,23 +67,27 @@ The Swift helper accepts commands on stdin and responds on stdout with newline-d
 **Commands (stdin, JSON):**
 
 ```json
-{"command": "list-apps"}
+{ "command": "list-apps" }
 ```
+
 Returns running apps that likely contain chat content.
 
 ```json
-{"command": "read-conversation", "pid": 70284}
+{ "command": "read-conversation", "pid": 70284 }
 ```
+
 Reads the current conversation from the app with the given PID.
 
 ```json
-{"command": "poll", "pid": 70284, "interval_ms": 3000}
+{ "command": "poll", "pid": 70284, "interval_ms": 3000 }
 ```
+
 Continuously polls and emits conversation snapshots at the given interval.
 
 ```json
-{"command": "stop"}
+{ "command": "stop" }
 ```
+
 Stops polling.
 
 **Output (stdout, newline-delimited JSON):**
@@ -114,6 +120,7 @@ Stops polling.
 The following parsing rules are derived from direct inspection of Claude Desktop's (Electron) accessibility tree. Claude Desktop exposes a clean, CSS-class-annotated DOM via AXWebArea elements.
 
 **Window structure:**
+
 ```
 AXWindow "Claude"
   └─ AXGroup (main)
@@ -126,6 +133,7 @@ AXWindow "Claude"
 ```
 
 **Finding the message container:**
+
 1. Find all `AXWebArea` elements under the main window
 2. Select the one with a non-empty `AXTitle` (this is the conversation WebArea — index 1 typically; index 0 is a blank utility WebArea)
 3. Navigate to the element with id `main-content` (via `AXDOMIdentifier`)
@@ -133,35 +141,41 @@ AXWindow "Claude"
 5. Its children are the message groups
 
 **Identifying user messages:**
+
 - Look for `AXGroup` elements where a descendant has CSS class containing `!font-user-message`
 - The actual message text is in `AXStaticText` elements within a child group with class `whitespace-pre-wrap break-words`
 - Concatenate all `AXStaticText.value` strings within that group
 
 **Identifying assistant (Claude) messages:**
+
 - Look for `AXGroup` elements where a descendant has CSS class containing `font-claude-response`
 - The **displayed response** (not the thinking) is in the section with class containing `row-start-2 col-start-1`
 - Within that, find groups with class `font-claude-response-body`
 - Concatenate all `AXStaticText.value` strings within those groups
 - **Important:** There may be multiple `font-claude-response-body` groups for paragraphs — concatenate them with newline separators
-- **Skip** the thinking/reasoning sections (these are in collapsible areas *before* the `row-start-2` section)
+- **Skip** the thinking/reasoning sections (these are in collapsible areas _before_ the `row-start-2` section)
 
 **Identifying timestamps:**
+
 - After each message, there's an `AXGroup` with `desc="Message actions"`
 - Its first child group may contain an `AXStaticText` with a time value like `"17:36"` or `"20:01"`
 
 **Identifying the conversation title:**
+
 - The `AXWebArea`'s `AXTitle` attribute contains the conversation title with suffix ` - Claude`
 - Strip the ` - Claude` suffix
 
 **Code blocks within messages:**
+
 - Code blocks appear as `AXGroup` elements with class containing `code-block__code`
 - They contain multiple `AXStaticText` children (syntax-highlighted tokens)
 - Concatenate all token values to reconstruct the code
 - For heckling purposes, code content can be summarized or truncated (the hecklers don't need to read every line of code)
 
 **Thinking/reasoning sections (SKIP for heckling):**
+
 - Claude's thinking appears in collapsible sections with a button title describing the thought
-- These are within `overflow-hidden` groups that come *before* the `row-start-2` main response section
+- These are within `overflow-hidden` groups that come _before_ the `row-start-2` main response section
 - The thinking text is in `font-claude-response-body` groups within these sections
 - For heckling purposes, SKIP these — only send the visible response to characters
 
@@ -182,6 +196,7 @@ Initial implementation: `ClaudeDesktopParser`. Future: `SlackParser`, `TeamsPars
 ### Accessibility Permissions
 
 On first launch, the app needs to request accessibility permissions. The Swift helper should:
+
 1. Check `AXIsProcessTrusted()` on startup
 2. If not trusted, emit a JSON error message: `{"type": "error", "code": "accessibility_denied", "message": "..."}`
 3. The Electron app should then show a dialog guiding the user to System Settings → Privacy & Security → Accessibility, and offer to open that pane directly.
@@ -191,25 +206,26 @@ On first launch, the app needs to request accessibility permissions. The Swift h
 ## Component 2: Message Differ (`src/main/differ.ts`)
 
 ### Purpose
+
 Compare successive conversation snapshots and identify new messages.
 
 ### Logic
 
 ```typescript
 interface Message {
-  role: 'user' | 'assistant';
-  text: string;
-  timestamp: string | null;
-  index: number;
+  role: 'user' | 'assistant'
+  text: string
+  timestamp: string | null
+  index: number
 }
 
 interface ConversationSnapshot {
-  title: string;
-  messages: Message[];
+  title: string
+  messages: Message[]
 }
 
 class MessageDiffer {
-  private lastSnapshot: ConversationSnapshot | null = null;
+  private lastSnapshot: ConversationSnapshot | null = null
 
   /**
    * Returns newly detected messages since the last snapshot.
@@ -217,22 +233,22 @@ class MessageDiffer {
    */
   diff(current: ConversationSnapshot): Message[] {
     if (!this.lastSnapshot) {
-      this.lastSnapshot = current;
+      this.lastSnapshot = current
       // On first read, return the last 2-3 messages as initial context
-      return current.messages.slice(-3);
+      return current.messages.slice(-3)
     }
 
     // Detect new messages (appended to end)
-    const newMessages: Message[] = [];
-    const lastCount = this.lastSnapshot.messages.length;
+    const newMessages: Message[] = []
+    const lastCount = this.lastSnapshot.messages.length
 
     if (current.messages.length > lastCount) {
       // New messages appended
-      newMessages.push(...current.messages.slice(lastCount));
+      newMessages.push(...current.messages.slice(lastCount))
     } else if (current.messages.length === lastCount) {
       // Check if the last message was updated (streaming completion)
-      const lastCurrent = current.messages[current.messages.length - 1];
-      const lastPrev = this.lastSnapshot.messages[this.lastSnapshot.messages.length - 1];
+      const lastCurrent = current.messages[current.messages.length - 1]
+      const lastPrev = this.lastSnapshot.messages[this.lastSnapshot.messages.length - 1]
       if (lastCurrent && lastPrev && lastCurrent.text !== lastPrev.text) {
         // Message was updated (likely streaming) — only emit when "settled"
         // Use a debounce mechanism in the caller
@@ -240,17 +256,17 @@ class MessageDiffer {
     } else {
       // Message count decreased — conversation was reset/changed
       // Treat as a fresh conversation
-      newMessages.push(...current.messages.slice(-3));
+      newMessages.push(...current.messages.slice(-3))
     }
 
     // Detect conversation change (different title)
     if (current.title !== this.lastSnapshot.title) {
-      this.lastSnapshot = current;
-      return current.messages.slice(-3);
+      this.lastSnapshot = current
+      return current.messages.slice(-3)
     }
 
-    this.lastSnapshot = current;
-    return newMessages;
+    this.lastSnapshot = current
+    return newMessages
   }
 }
 ```
@@ -269,21 +285,22 @@ Claude Desktop streams responses. The accessibility tree will show partial respo
 ## Component 3: Character Engine (`src/main/characters.ts`)
 
 ### Purpose
+
 Manage AI character personas, generate commentary via the Anthropic API, and chain character interactions.
 
 ### Configuration
 
 ```typescript
 interface CharacterConfig {
-  id: string;
-  name: string;
-  avatarPath: string;         // Path to avatar image
-  color: string;              // Theme color for speech bubbles
-  systemPrompt: string;       // Full system prompt defining persona
-  temperature: number;        // Usually 0.8-1.0 for creative/funny output
-  maxTokens: number;          // Keep short — 100-200 tokens per comment
-  reactionChance: number;     // 0-1, probability of reacting to a given message
-  reactionToOtherChance: number; // 0-1, probability of reacting to another character
+  id: string
+  name: string
+  avatarPath: string // Path to avatar image
+  color: string // Theme color for speech bubbles
+  systemPrompt: string // Full system prompt defining persona
+  temperature: number // Usually 0.8-1.0 for creative/funny output
+  maxTokens: number // Keep short — 100-200 tokens per comment
+  reactionChance: number // 0-1, probability of reacting to a given message
+  reactionToOtherChance: number // 0-1, probability of reacting to another character
 }
 ```
 
@@ -335,40 +352,38 @@ New message detected
 ### API Calls
 
 ```typescript
-import Anthropic from '@anthropic-ai/sdk';
+import Anthropic from '@anthropic-ai/sdk'
 
 const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY  // or loaded from app settings
-});
+  apiKey: process.env.ANTHROPIC_API_KEY, // or loaded from app settings
+})
 
 async function generateComment(
   character: CharacterConfig,
   conversationContext: Message[],
-  previousComments: { character: string; text: string }[]
+  previousComments: { character: string; text: string }[],
 ): Promise<string> {
   const contextText = conversationContext
-    .map(m => `[${m.role}]: ${m.text.substring(0, 500)}`)
-    .join('\n');
+    .map((m) => `[${m.role}]: ${m.text.substring(0, 500)}`)
+    .join('\n')
 
-  const previousText = previousComments
-    .map(c => `${c.character}: "${c.text}"`)
-    .join('\n');
+  const previousText = previousComments.map((c) => `${c.character}: "${c.text}"`).join('\n')
 
-  let userPrompt = `Here's the recent conversation you're watching:\n\n${contextText}`;
+  let userPrompt = `Here's the recent conversation you're watching:\n\n${contextText}`
   if (previousText) {
-    userPrompt += `\n\nYour fellow hecklers just said:\n${previousText}`;
+    userPrompt += `\n\nYour fellow hecklers just said:\n${previousText}`
   }
-  userPrompt += '\n\nYour reaction (keep it to 1-2 sentences max):';
+  userPrompt += '\n\nYour reaction (keep it to 1-2 sentences max):'
 
   const response = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: character.maxTokens,
     temperature: character.temperature,
     system: character.systemPrompt,
-    messages: [{ role: 'user', content: userPrompt }]
-  });
+    messages: [{ role: 'user', content: userPrompt }],
+  })
 
-  return response.content[0].type === 'text' ? response.content[0].text : '';
+  return response.content[0].type === 'text' ? response.content[0].text : ''
 }
 ```
 
@@ -393,21 +408,21 @@ const overlay = new BrowserWindow({
   width: 380,
   height: 600,
   alwaysOnTop: true,
-  frame: false,              // Frameless for custom title bar
-  transparent: true,         // Allow rounded corners / transparency
+  frame: false, // Frameless for custom title bar
+  transparent: true, // Allow rounded corners / transparency
   resizable: true,
   hasShadow: true,
-  vibrancy: 'under-window',  // macOS frosted glass effect
+  vibrancy: 'under-window', // macOS frosted glass effect
   webPreferences: {
     preload: path.join(__dirname, 'preload.js'),
     contextIsolation: true,
-    nodeIntegration: false
-  }
-});
+    nodeIntegration: false,
+  },
+})
 
 // Position to the right of the target app window
 // Use the target app's AXPosition and AXSize to calculate
-overlay.setPosition(targetX + targetWidth + 10, targetY);
+overlay.setPosition(targetX + targetWidth + 10, targetY)
 ```
 
 ### UI Layout (React + Tailwind)
@@ -465,6 +480,7 @@ Speech bubbles should have the character's theme color as a subtle background ti
 Accessible via the gear icon. Stored in electron-store or a JSON file.
 
 Settings:
+
 - **API Key**: Anthropic API key input (stored securely in system keychain via `safeStorage`)
 - **Target App**: Dropdown to select which app to watch (populated by `list-apps` command)
 - **Character Toggles**: Enable/disable individual characters
@@ -543,23 +559,23 @@ ipcMain.emit('comment:new', {
   characterId: string,
   characterName: string,
   text: string,
-  roundId: string,           // Groups comments from the same trigger
-  timestamp: number
-});
+  roundId: string, // Groups comments from the same trigger
+  timestamp: number,
+})
 
 // Status updates
 ipcMain.emit('status:update', {
   watching: boolean,
   appName: string,
   conversationTitle: string,
-  pid: number
-});
+  pid: number,
+})
 
 // Error messages
 ipcMain.emit('error', {
   code: string,
-  message: string
-});
+  message: string,
+})
 ```
 
 ### Renderer → Main (via IPC)
@@ -580,11 +596,13 @@ ipcRenderer.invoke('settings:set', key: string, value: any);
 ## Build & Development
 
 ### Prerequisites
+
 - Node.js 20+
 - Xcode Command Line Tools (for Swift compilation)
 - Anthropic API key
 
 ### Setup
+
 ```bash
 npm install
 npm run build:swift    # Compile the Swift helper
@@ -592,6 +610,7 @@ npm run dev            # Start Electron in dev mode with hot reload
 ```
 
 ### Package.json Scripts
+
 ```json
 {
   "scripts": {
@@ -607,6 +626,7 @@ npm run dev            # Start Electron in dev mode with hot reload
 ```
 
 ### Key Dependencies
+
 ```json
 {
   "dependencies": {
@@ -637,6 +657,7 @@ npm run dev            # Start Electron in dev mode with hot reload
 ## Implementation Order
 
 ### Phase 1: Foundation (Do First)
+
 1. Initialize project with `electron-vite` template (React + TypeScript)
 2. Set up Tailwind CSS
 3. Write and compile the Swift accessibility helper (`ax-reader.swift`)
@@ -644,6 +665,7 @@ npm run dev            # Start Electron in dev mode with hot reload
 5. Test: Can we read messages from Claude Desktop? Log them to console.
 
 ### Phase 2: Core Logic
+
 6. Implement `differ.ts` with debounce for streaming messages
 7. Implement `characters.ts` with the Character Engine
 8. Create placeholder character configs with basic system prompts (will be refined later)
@@ -651,6 +673,7 @@ npm run dev            # Start Electron in dev mode with hot reload
 10. Test end-to-end: Have a conversation in Claude Desktop, see heckler comments in the Electron console
 
 ### Phase 3: UI
+
 11. Build the overlay window (frameless, always-on-top, transparent)
 12. Implement `TitleBar.tsx` with drag support
 13. Implement `CommentFeed.tsx` and `CommentBubble.tsx`
@@ -660,6 +683,7 @@ npm run dev            # Start Electron in dev mode with hot reload
 17. Create placeholder avatar images (simple colored circles with initials until real avatars are provided)
 
 ### Phase 4: Settings & Polish
+
 18. Implement settings panel with API key input (stored via safeStorage)
 19. Add app selection dropdown
 20. Add character enable/disable toggles
@@ -669,6 +693,7 @@ npm run dev            # Start Electron in dev mode with hot reload
 24. Handle edge cases: app closed, conversation changed, network errors, API errors
 
 ### Phase 5: Packaging
+
 25. Configure electron-builder for macOS DMG distribution
 26. Add app icon
 27. Code signing (if available)
@@ -679,6 +704,7 @@ npm run dev            # Start Electron in dev mode with hot reload
 ## Important Notes for Implementation
 
 ### Accessibility API Gotchas
+
 - The accessibility tree is read-only. We cannot modify the target app.
 - The AXUIElement API requires the process to have accessibility permissions granted by the user.
 - The tree can be large. Don't traverse deeper than necessary — go straight to known structural paths.
@@ -686,19 +712,23 @@ npm run dev            # Start Electron in dev mode with hot reload
 - Element positions and the tree structure may change with Claude Desktop updates. The parser should fail gracefully and log diagnostic info if the expected structure isn't found.
 
 ### Streaming Detection
+
 - Claude Desktop streams responses. During streaming, the last assistant message in the tree will grow over time.
 - Use the debounce approach: only process a message when its text hasn't changed for 2+ seconds.
 - Alternative: detect the "Done" text that appears in the thinking section's footer (class `text-text-300 !font-base`, value "Done"). This indicates the response is complete.
 
 ### Conversation Changes
+
 - When the user switches conversations, the WebArea title changes and the message list is replaced.
 - The differ should detect this via title change and reset its state.
 
 ### Security
+
 - The API key should be stored using Electron's `safeStorage` API, not in plaintext.
 - The Swift helper only reads accessibility data. It cannot modify other apps or send keystrokes.
 
 ### Performance
+
 - Polling interval of 3 seconds is fine. The accessibility API calls are fast (< 100ms for the targeted traversal).
 - Don't traverse the full tree. Navigate directly to the known structural path: Window → WebArea[1] → #main-content → .overflow-y-scroll → messages.
 - The Character Engine API calls are async and don't block the UI.
@@ -710,16 +740,19 @@ npm run dev            # Start Electron in dev mode with hot reload
 Character system prompts will be provided separately and placed in the `src/characters/` directory. For initial development, use these **placeholder prompts**:
 
 ### Waldorf (placeholder)
+
 ```
 You are Waldorf, a grumpy old theatre critic watching a conversation between a human and an AI assistant. You find everything about it vaguely irritating and beneath you. Make short, sardonic comments (1-2 sentences max). Be witty, not mean-spirited. Reference the actual content of the conversation in your heckles.
 ```
 
 ### Statler (placeholder)
+
 ```
 You are Statler, a grumpy old theatre critic and Waldorf's best friend. You watch conversations between humans and AI assistants. When you see what your partner Waldorf said, build on his joke or deliver a punchline. When reacting alone, make dry observations. Keep it to 1-2 sentences. You think AI is simultaneously impressive and ridiculous.
 ```
 
 ### Gerald (placeholder)
+
 ```
 You are Gerald, a bewildered retiree who doesn't understand technology. You somehow ended up watching a conversation between a human and an AI. You're confused by everything but trying your best to follow along. Make short, confused comments (1-2 sentences). Occasionally stumble into accidentally profound observations. You think "the cloud" is an actual cloud.
 ```

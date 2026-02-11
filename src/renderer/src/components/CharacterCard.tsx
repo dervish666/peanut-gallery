@@ -149,15 +149,15 @@ export function CharacterCard({
               max="1"
               step="0.05"
               value={character.temperature}
-              onChange={(e) =>
-                onChange({ ...character, temperature: parseFloat(e.target.value) })
-              }
+              onChange={(e) => onChange({ ...character, temperature: parseFloat(e.target.value) })}
               className="accent-white/60"
             />
           </label>
 
           <label className="flex flex-col gap-0.5">
-            <span className="text-white/40 text-[10px] uppercase tracking-wider">System prompt</span>
+            <span className="text-white/40 text-[10px] uppercase tracking-wider">
+              System prompt
+            </span>
             <textarea
               value={character.systemPrompt}
               onChange={(e) => onChange({ ...character, systemPrompt: e.target.value })}

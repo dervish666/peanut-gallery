@@ -19,7 +19,7 @@ Three changes:
 Add an `NSWorkspace.didActivateApplicationNotification` observer at process startup, before the stdin command loop. On each notification, emit an unsolicited JSON line:
 
 ```json
-{"type": "app-activated", "bundleId": "com.anthropic.claudefordesktop", "pid": 12345}
+{ "type": "app-activated", "bundleId": "com.anthropic.claudefordesktop", "pid": 12345 }
 ```
 
 This is a push event — no command/response cycle. The observer runs on the main run loop alongside the existing stdin reader.

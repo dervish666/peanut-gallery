@@ -21,7 +21,12 @@ describe('MessageDiffer', () => {
 
   describe('initial diff (first call)', () => {
     it('returns last 3 messages as initial context', () => {
-      const messages = [msg('user', 'a', 0), msg('assistant', 'b', 1), msg('user', 'c', 2), msg('assistant', 'd', 3)]
+      const messages = [
+        msg('user', 'a', 0),
+        msg('assistant', 'b', 1),
+        msg('user', 'c', 2),
+        msg('assistant', 'd', 3),
+      ]
       const result = differ.diff('title', messages)
       expect(result).toHaveLength(3)
       expect(result[0].text).toBe('b')

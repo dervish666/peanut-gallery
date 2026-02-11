@@ -17,7 +17,7 @@ The settings object stored in electron-store:
 ```typescript
 // src/shared/types.ts additions
 interface AppSettings {
-  activeCharacters: CharacterConfig[]  // the current roster
+  activeCharacters: CharacterConfig[] // the current roster
 }
 ```
 
@@ -30,6 +30,7 @@ The preset roster (all available built-in characters) stays in `src/characters/`
 ### Task 1: Install electron-store
 
 **Files:**
+
 - Modify: `package.json`
 
 **Step 1: Install**
@@ -48,6 +49,7 @@ git commit -m "deps: add electron-store for settings persistence"
 ### Task 2: Add settings types and preload API
 
 **Files:**
+
 - Modify: `src/shared/types.ts`
 - Modify: `src/preload/index.ts`
 - Modify: `src/preload/index.d.ts`
@@ -115,6 +117,7 @@ git commit -m "feat: add settings types and preload IPC bridge"
 ### Task 3: Main process — electron-store + IPC handlers
 
 **Files:**
+
 - Modify: `src/main/index.ts`
 - Modify: `src/main/characters.ts`
 
@@ -123,7 +126,7 @@ git commit -m "feat: add settings types and preload IPC bridge"
 Add imports at top of `src/main/index.ts`:
 
 ```typescript
-import { ipcMain } from 'electron'  // add to existing electron import
+import { ipcMain } from 'electron' // add to existing electron import
 import Store from 'electron-store'
 import { characters as presetCharacters } from '../characters'
 import type { AppSettings, CharacterConfig } from '../shared/types'
@@ -214,6 +217,7 @@ git commit -m "feat: electron-store settings with IPC handlers, dynamic characte
 ### Task 4: Settings drawer — useSettings hook
 
 **Files:**
+
 - Create: `src/renderer/src/hooks/useSettings.ts`
 
 **Step 1: Create the hook**
@@ -228,10 +232,7 @@ export function useSettings() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([
-      window.api.getSettings(),
-      window.api.getPresetCharacters(),
-    ]).then(([s, p]) => {
+    Promise.all([window.api.getSettings(), window.api.getPresetCharacters()]).then(([s, p]) => {
       setSettingsState(s)
       setPresets(p)
       setIsLoading(false)
@@ -264,6 +265,7 @@ git commit -m "feat: useSettings hook for renderer settings access"
 ### Task 5: Settings drawer — CharacterCard component
 
 **Files:**
+
 - Create: `src/renderer/src/components/CharacterCard.tsx`
 
 This is a compact card showing one character in the active roster with inline-editable fields.
@@ -421,6 +423,7 @@ git commit -m "feat: CharacterCard component with expandable settings"
 ### Task 6: Settings drawer — SettingsDrawer component
 
 **Files:**
+
 - Create: `src/renderer/src/components/SettingsDrawer.tsx`
 
 Slide-in drawer from the right, overlaying the comment feed. Shows the active roster with CharacterCards, an "Add from preset" dropdown, and an "Add custom" button.
@@ -615,6 +618,7 @@ git commit -m "feat: SettingsDrawer with character management"
 ### Task 7: Wire everything together in App.tsx
 
 **Files:**
+
 - Modify: `src/renderer/src/App.tsx`
 
 **Step 1: Update App.tsx**
@@ -706,6 +710,7 @@ Expected: PASS
 Run: `npm run dev` with Claude Desktop open.
 
 Verify:
+
 - Gear icon visible in top-right of drag bar
 - Clicking gear opens settings drawer sliding in from right
 - Active characters listed with colored borders
@@ -726,15 +731,15 @@ git commit -m "feat: settings panel complete — character management with persi
 
 ## Key Files Summary
 
-| File | Action | Purpose |
-|------|--------|---------|
-| `package.json` | Modify | Add electron-store |
-| `src/shared/types.ts` | Modify | AppSettings type, expanded PeanutGalleryAPI |
-| `src/preload/index.ts` | Modify | getSettings, setSettings, getPresetCharacters IPC |
-| `src/preload/index.d.ts` | Unchanged | Already typed via PeanutGalleryAPI |
-| `src/main/index.ts` | Modify | electron-store setup, IPC handlers, dynamic engine init |
-| `src/main/characters.ts` | Modify | Accept dynamic character list, add setCharacters() |
-| `src/renderer/src/hooks/useSettings.ts` | Create | Settings state + save hook |
-| `src/renderer/src/components/CharacterCard.tsx` | Create | Expandable character config card |
-| `src/renderer/src/components/SettingsDrawer.tsx` | Create | Slide-out drawer with roster management |
-| `src/renderer/src/App.tsx` | Modify | Gear button, drawer wiring |
+| File                                             | Action    | Purpose                                                 |
+| ------------------------------------------------ | --------- | ------------------------------------------------------- |
+| `package.json`                                   | Modify    | Add electron-store                                      |
+| `src/shared/types.ts`                            | Modify    | AppSettings type, expanded PeanutGalleryAPI             |
+| `src/preload/index.ts`                           | Modify    | getSettings, setSettings, getPresetCharacters IPC       |
+| `src/preload/index.d.ts`                         | Unchanged | Already typed via PeanutGalleryAPI                      |
+| `src/main/index.ts`                              | Modify    | electron-store setup, IPC handlers, dynamic engine init |
+| `src/main/characters.ts`                         | Modify    | Accept dynamic character list, add setCharacters()      |
+| `src/renderer/src/hooks/useSettings.ts`          | Create    | Settings state + save hook                              |
+| `src/renderer/src/components/CharacterCard.tsx`  | Create    | Expandable character config card                        |
+| `src/renderer/src/components/SettingsDrawer.tsx` | Create    | Slide-out drawer with roster management                 |
+| `src/renderer/src/App.tsx`                       | Modify    | Gear button, drawer wiring                              |

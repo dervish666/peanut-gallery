@@ -18,8 +18,8 @@ It outputs a structured JSON plan:
 interface DirectorPlan {
   cast: Array<{
     characterId: string
-    reactTo: 'conversation' | string  // string = characterId to riff on
-    note: string                       // 5-10 word creative direction
+    reactTo: 'conversation' | string // string = characterId to riff on
+    note: string // 5-10 word creative direction
   }>
 }
 ```
