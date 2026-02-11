@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { parseDirectorPlan } from './director'
+import { parseDirectorPlan, buildDirectorMessages } from './director'
+import type { Message, CharacterConfig } from '../shared/types'
 
 const enabledIds = ['waldorf', 'statler', 'dave']
 
@@ -54,5 +55,46 @@ describe('parseDirectorPlan', () => {
     })
     const plan = parseDirectorPlan(json, enabledIds)
     expect(plan.cast[0].reactTo).toBe('conversation')
+  })
+})
+
+function msg(role: 'user' | 'assistant', text: string): Message {
+  return { role, text, timestamp: null, index: 0 }
+}
+
+function makeRoster(): Pick<CharacterConfig, 'id' | 'name' | 'summary'>[] {
+  return [
+    { id: 'waldorf', name: 'Waldorf', summary: 'Savage theatre critic' },
+    { id: 'statler', name: 'Statler', summary: 'Comedy partner, punchline man' },
+  ]
+}
+
+describe('buildDirectorMessages', () => {
+  it('includes conversation context in user message', () => {
+    const messages = [msg('user', 'hello'), msg('assistant', 'hi there')]
+    const result = buildDirectorMessages(messages, makeRoster(), [])
+    expect(result.userMessage).toContain('[user]: hello')
+    expect(result.userMessage).toContain('[assistant]: hi there')
+  })
+
+  it('includes character roster in user message', () => {
+    const result = buildDirectorMessages([msg('user', 'test')], makeRoster(), [])
+    expect(result.userMessage).toContain('waldorf')
+    expect(result.userMessage).toContain('Savage theatre critic')
+  })
+
+  it('includes round history when provided', () => {
+    const history = [
+      {
+        comments: [{ character: 'Waldorf', text: 'That was awful' }],
+      },
+    ]
+    const result = buildDirectorMessages([msg('user', 'test')], makeRoster(), history)
+    expect(result.userMessage).toContain('That was awful')
+  })
+
+  it('returns a system prompt with comedy director personality', () => {
+    const result = buildDirectorMessages([msg('user', 'test')], makeRoster(), [])
+    expect(result.systemPrompt).toContain('comedy director')
   })
 })
