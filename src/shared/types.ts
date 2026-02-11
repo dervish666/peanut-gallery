@@ -19,7 +19,7 @@ export interface AppInfo {
 }
 
 export interface AXResponse {
-  type: 'apps' | 'conversation' | 'error'
+  type: 'apps' | 'conversation' | 'app-activated' | 'error'
 }
 
 export interface AppsResponse extends AXResponse {
@@ -35,13 +35,19 @@ export interface ConversationResponse extends AXResponse {
   messages: Message[]
 }
 
+export interface AppActivatedResponse extends AXResponse {
+  type: 'app-activated'
+  bundleId: string
+  pid: number
+}
+
 export interface ErrorResponse extends AXResponse {
   type: 'error'
   code: string
   message: string
 }
 
-export type SwiftResponse = AppsResponse | ConversationResponse | ErrorResponse
+export type SwiftResponse = AppsResponse | ConversationResponse | AppActivatedResponse | ErrorResponse
 
 export interface CharacterConfig {
   id: string
