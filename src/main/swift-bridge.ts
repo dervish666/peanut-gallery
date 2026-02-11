@@ -6,6 +6,7 @@ import type {
   SwiftResponse,
   AppsResponse,
   ConversationResponse,
+  AppActivatedResponse,
   AppInfo,
   Conversation,
 } from '../shared/types'
@@ -154,6 +155,14 @@ export class SwiftBridge extends EventEmitter {
       if (!line.trim()) continue
       try {
         const response = JSON.parse(line) as SwiftResponse
+
+        // Push events are unsolicited — route to EventEmitter, not command queue
+        if (response.type === 'app-activated') {
+          const event = response as AppActivatedResponse
+          this.emit('app-activated', event.bundleId, event.pid)
+          continue
+        }
+
         if (!this.active) {
           console.warn('[ax-reader] Received response with no active command:', line.slice(0, 100))
           continue
