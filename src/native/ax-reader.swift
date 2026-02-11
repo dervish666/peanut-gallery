@@ -342,11 +342,14 @@ func main() {
         emit(AppActivatedResult(type: "app-activated", bundleId: bundleId, pid: app.processIdentifier))
     }
 
-    // Read commands from stdin on a background thread
+    // Read commands from stdin on a background thread.
+    // Use CFRunLoopPerformBlock instead of DispatchQueue.main.async so that
+    // AX API calls (which use Mach IPC) can have their reply ports serviced
+    // by the RunLoop during tree traversal.
     DispatchQueue.global(qos: .userInteractive).async {
         while let line = readLine() {
             let lineCapture = line
-            DispatchQueue.main.async {
+            CFRunLoopPerformBlock(CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue) {
                 guard let data = lineCapture.data(using: .utf8),
                       let command = try? JSONDecoder().decode(Command.self, from: data) else {
                     emitError(code: "invalid_command", message: "Could not parse command: \(lineCapture)")
@@ -387,12 +390,14 @@ func main() {
                     emitError(code: "unknown_command", message: "Unknown command: \(command.command)")
                 }
             }
+            CFRunLoopWakeUp(CFRunLoopGetMain())
         }
 
         // stdin closed — exit cleanly
-        DispatchQueue.main.async {
+        CFRunLoopPerformBlock(CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue) {
             exit(0)
         }
+        CFRunLoopWakeUp(CFRunLoopGetMain())
     }
 
     // Run the main run loop so NSWorkspace notifications are delivered
