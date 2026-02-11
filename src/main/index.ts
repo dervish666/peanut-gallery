@@ -94,19 +94,16 @@ function handleNewMessages(messages: Message[], triggerCommentary: boolean): voi
     const lastMsg = messages[messages.length - 1]
     const convId = currentConversationId
     engine
-      .generateCommentary(lastMsg, recentMessages, convId)
-      .then((comments) => {
-        for (const comment of comments) {
-          // Drop stale commentary if conversation switched while generating
-          if (comment.conversationId !== currentConversationId) {
-            console.log(
-              `[Commentary] Dropping stale comment from ${comment.characterName} (old conv)`,
-            )
-            continue
-          }
-          console.log(`[${comment.characterName}] "${comment.text}"`)
-          mainWindow?.webContents.send('comment:new', comment)
+      .generateCommentary(lastMsg, recentMessages, convId, (comment) => {
+        // Drop stale commentary if conversation switched while generating
+        if (comment.conversationId !== currentConversationId) {
+          console.log(
+            `[Commentary] Dropping stale comment from ${comment.characterName} (old conv)`,
+          )
+          return
         }
+        console.log(`[${comment.characterName}] "${comment.text}"`)
+        mainWindow?.webContents.send('comment:new', comment)
       })
       .catch((err) => {
         console.error('[Commentary] Error:', err)
@@ -126,6 +123,7 @@ async function pollConversation(): Promise<void> {
       currentConversationId = makeConversationId(conversation.title)
       currentTitle = conversation.title
       recentMessages = []
+      engine?.resetHistory()
       mainWindow?.webContents.send('comments:clear')
       emitNowShowing(currentConversationId, conversation.title, null)
 
