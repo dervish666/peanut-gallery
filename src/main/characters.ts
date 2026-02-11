@@ -259,6 +259,8 @@ Rules:
       userPrompt += `\n\n[Director's note: ${entry.note}]`
     }
 
+    userPrompt += `\n\nIMPORTANT: You are ONLY ${character.name}. Do NOT write dialog for other characters. Do NOT prefix your line with any character name. Just say your one line.`
+
     const response = await this.client.messages.create({
       model: MODEL,
       max_tokens: character.maxTokens,
@@ -269,7 +271,11 @@ Rules:
 
     const block = response.content[0]
     if (block.type === 'text') {
-      return block.text.trim()
+      let text = block.text.trim()
+      // Strip character name prefix if model writes "WALDORF: ..." or "Waldorf: ..."
+      const namePrefix = new RegExp(`^${character.name}:\\s*`, 'i')
+      text = text.replace(namePrefix, '')
+      return text.trim()
     }
     return ''
   }
