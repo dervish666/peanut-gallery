@@ -20,6 +20,7 @@ function makeCharacter(overrides: Partial<CharacterConfig> = {}): CharacterConfi
     avatar: '🎭',
     color: '#FF0000',
     enabled: true,
+    summary: 'A test character',
     systemPrompt: 'You are a test character.',
     temperature: 0.9,
     maxTokens: 50,

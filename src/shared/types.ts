@@ -64,6 +64,17 @@ export interface CharacterConfig {
   maxTokens: number
   reactionChance: number
   reactionToOtherChance: number
+  summary?: string // one-line personality summary for the director
+}
+
+export interface DirectorCastEntry {
+  characterId: string
+  reactTo: 'conversation' | string // 'conversation' or a characterId
+  note: string // 5-10 word creative direction
+}
+
+export interface DirectorPlan {
+  cast: DirectorCastEntry[]
 }
 
 export interface NowShowingEvent {
