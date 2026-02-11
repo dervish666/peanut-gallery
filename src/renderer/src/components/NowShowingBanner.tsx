@@ -4,12 +4,13 @@ import type { NowShowingEvent } from '../../../shared/types'
 
 interface NowShowingBannerProps {
   event: NowShowingEvent | null
+  replayTrigger?: number
 }
 
 const ROAST_DISPLAY_MS = 3500
 const FALLBACK_DISMISS_MS = 8000
 
-export function NowShowingBanner({ event }: NowShowingBannerProps): React.JSX.Element {
+export function NowShowingBanner({ event, replayTrigger }: NowShowingBannerProps): React.JSX.Element {
   const [visible, setVisible] = useState(false)
   const [displayEvent, setDisplayEvent] = useState<NowShowingEvent | null>(null)
   const [roast, setRoast] = useState<string | null>(null)
@@ -32,13 +33,22 @@ export function NowShowingBanner({ event }: NowShowingBannerProps): React.JSX.El
     // eslint-disable-next-line react-hooks/exhaustive-deps -- lastConvId is intentionally excluded to avoid re-triggering
   }, [event])
 
-  // Auto-dismiss timer: starts only after roast arrives
+  // Replay: re-show the banner when replayTrigger changes
+  const [replayCount, setReplayCount] = useState(0)
+  useEffect(() => {
+    if (!replayTrigger || !displayEvent) return
+    setReplayCount((c) => c + 1)
+    setVisible(true)
+  }, [replayTrigger]) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally only trigger on replayTrigger
+
+  // Auto-dismiss timer: starts when roast is present and banner is visible
+  // replayCount in deps ensures timer resets on each replay
   useEffect(() => {
     if (!visible || roast === null) return
 
     const timer = setTimeout(() => setVisible(false), ROAST_DISPLAY_MS)
     return () => clearTimeout(timer)
-  }, [visible, roast])
+  }, [visible, roast, replayCount])
 
   // Fallback dismiss: if roast never arrives, dismiss after FALLBACK_DISMISS_MS
   useEffect(() => {

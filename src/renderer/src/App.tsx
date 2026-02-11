@@ -12,6 +12,7 @@ function App(): React.JSX.Element {
   const { nowShowing } = useNowShowing()
   const { settings, presets, isLoading, saveSettings } = useSettings()
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [replayTrigger, setReplayTrigger] = useState(0)
 
   return (
     <TheatreFrame>
@@ -51,8 +52,15 @@ function App(): React.JSX.Element {
           </button>
         </div>
 
+        {/* Clickable curtain top area — replays the Now Showing banner */}
+        <div
+          className="absolute left-0 right-0 cursor-pointer"
+          style={{ top: -70, height: 70, marginLeft: -35, marginRight: -35, zIndex: 11 }}
+          onClick={() => setReplayTrigger((c) => c + 1)}
+        />
+
         {/* Now Showing banner */}
-        <NowShowingBanner event={nowShowing} />
+        <NowShowingBanner event={nowShowing} replayTrigger={replayTrigger} />
 
         {/* Comment feed */}
         <CommentList comments={comments} />
