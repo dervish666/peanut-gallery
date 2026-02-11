@@ -11,11 +11,15 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import Store from 'electron-store'
 import icon from '../../resources/icon.png?asset'
+import { initLogger } from './logger'
 import { SwiftBridge, SwiftBridgeError } from './swift-bridge'
 import { MessageDiffer } from './differ'
 import { CharacterEngine } from './characters'
 import { characters as presetCharacters } from '../characters'
 import type { Message, NowShowingEvent, AppSettings, CharacterConfig } from '../shared/types'
+
+const logPath = initLogger()
+console.log(`[PeanutGallery] Log file: ${logPath}`)
 
 const bridge = new SwiftBridge()
 const differ = new MessageDiffer()
@@ -210,7 +214,6 @@ function createWindow(): void {
     show: false,
     frame: false,
     transparent: true,
-    alwaysOnTop: true,
     hasShadow: false,
     skipTaskbar: true,
     resizable: false,
@@ -318,6 +321,7 @@ async function startAccessibilityReader(): Promise<void> {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.peanutgallery.app')
+  app.dock?.hide()
 
   // Force dark mode so overlay text stays readable on any macOS appearance
   nativeTheme.themeSource = 'dark'
@@ -350,6 +354,44 @@ app.whenReady().then(() => {
 
   createWindow()
   startAccessibilityReader()
+
+  const CLAUDE_BUNDLE_ID = 'com.anthropic.claudefordesktop'
+  const SELF_BUNDLE_ID = 'com.peanutgallery.app'
+
+  bridge.on('app-activated', async (bundleId: string, _pid: number) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+
+    if (bundleId === CLAUDE_BUNDLE_ID) {
+      // Claude activated — show overlay
+      mainWindow.setAlwaysOnTop(true, 'floating')
+      mainWindow.showInactive()
+      positionOverlayBesideClaude()
+
+      // If we don't have Claude's PID yet, discover it and start polling
+      if (!claudePid) {
+        try {
+          const apps = await bridge.listApps()
+          const claudeApp = apps.find((a) => a.bundleIdentifier === CLAUDE_BUNDLE_ID)
+          if (claudeApp) {
+            claudePid = claudeApp.pid
+            console.log(`[PeanutGallery] Discovered Claude Desktop (PID ${claudePid})`)
+            if (!pollInterval) {
+              pollInterval = setInterval(pollConversation, 3000)
+            }
+            await pollConversation()
+          }
+        } catch (err) {
+          console.error('[PeanutGallery] Error discovering Claude:', err)
+        }
+      }
+    } else if (bundleId === SELF_BUNDLE_ID) {
+      // User clicked overlay — do nothing, keep visible
+    } else {
+      // Another app activated — hide overlay
+      mainWindow.setAlwaysOnTop(false)
+      mainWindow.hide()
+    }
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
