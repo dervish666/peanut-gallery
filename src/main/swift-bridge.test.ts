@@ -204,4 +204,56 @@ describe('SwiftBridge', () => {
       bridge.destroy()
     })
   })
+
+  describe('push events', () => {
+    it('emits app-activated event for unsolicited app-activated messages', async () => {
+      vi.useRealTimers()
+      const bridge = await createBridge()
+      const handler = vi.fn()
+      bridge.on('app-activated', handler)
+
+      // Send unsolicited push event (no active command)
+      sendResponse({
+        type: 'app-activated',
+        bundleId: 'com.anthropic.claudefordesktop',
+        pid: 999,
+      })
+
+      // Allow event processing
+      await new Promise((r) => setTimeout(r, 50))
+
+      expect(handler).toHaveBeenCalledWith('com.anthropic.claudefordesktop', 999)
+      bridge.destroy()
+    })
+
+    it('does not interfere with active command responses', async () => {
+      vi.useRealTimers()
+      const bridge = await createBridge()
+      const handler = vi.fn()
+      bridge.on('app-activated', handler)
+
+      // Start a command
+      const promise = bridge.listApps()
+
+      // Push event arrives while command is active
+      sendResponse({
+        type: 'app-activated',
+        bundleId: 'com.example.other',
+        pid: 555,
+      })
+
+      // Then the actual command response arrives
+      sendResponse({
+        type: 'apps',
+        apps: [{ name: 'Claude', pid: 100, bundleIdentifier: 'com.anthropic.claudefordesktop' }],
+      })
+
+      const apps = await promise
+      expect(apps).toHaveLength(1)
+
+      await new Promise((r) => setTimeout(r, 50))
+      expect(handler).toHaveBeenCalledWith('com.example.other', 555)
+      bridge.destroy()
+    })
+  })
 })
