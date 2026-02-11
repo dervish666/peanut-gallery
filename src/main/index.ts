@@ -356,10 +356,8 @@ app.whenReady().then(() => {
   startAccessibilityReader()
 
   const CLAUDE_BUNDLE_ID = 'com.anthropic.claudefordesktop'
-  const SELF_BUNDLE_ID = 'com.peanutgallery.app'
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  bridge.on('app-activated', async (bundleId: string, _pid: number) => {
+  bridge.on('app-activated', async (bundleId: string, pid: number) => {
     if (!mainWindow || mainWindow.isDestroyed()) return
 
     if (bundleId === CLAUDE_BUNDLE_ID) {
@@ -385,7 +383,7 @@ app.whenReady().then(() => {
           console.error('[PeanutGallery] Error discovering Claude:', err)
         }
       }
-    } else if (bundleId === SELF_BUNDLE_ID) {
+    } else if (pid === process.pid) {
       // User clicked overlay — do nothing, keep visible
     } else {
       // Another app activated — hide overlay
