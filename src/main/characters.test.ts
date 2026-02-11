@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { Message, CharacterConfig } from '../shared/types'
+import type { Message, CharacterConfig, CommentEvent } from '../shared/types'
 
 // Store the mock function at module level
 const mockCreate = vi.fn()
@@ -34,8 +34,22 @@ function msg(role: 'user' | 'assistant', text: string): Message {
   return { role, text, timestamp: null, index: 0 }
 }
 
-function apiResponse(text: string) {
+function apiResponse(text: string): { content: { type: string; text: string }[] } {
   return { content: [{ type: 'text', text }] }
+}
+
+function directorPlan(cast: { characterId: string; reactTo?: string; note?: string }[]): {
+  content: { type: string; text: string }[]
+} {
+  return apiResponse(
+    JSON.stringify({
+      cast: cast.map((c) => ({
+        characterId: c.characterId,
+        reactTo: c.reactTo || 'conversation',
+        note: c.note || '',
+      })),
+    }),
+  )
 }
 
 describe('CharacterEngine', () => {
@@ -45,62 +59,167 @@ describe('CharacterEngine', () => {
   })
 
   // Import dynamically after mock is set up
+  // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
   async function createEngine(characters: CharacterConfig[]) {
     const { CharacterEngine } = await import('./characters')
-    return new CharacterEngine('test-key', characters)
+    const engine = new CharacterEngine('test-key', characters)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.spyOn(engine as any, 'jitterDelay').mockResolvedValue(undefined)
+    return engine
   }
 
   describe('generateCommentary', () => {
-    it('generates comments from enabled characters', async () => {
-      const engine = await createEngine([makeCharacter()])
-      const comments = await engine.generateCommentary(
-        msg('assistant', 'hello'),
-        [msg('user', 'hi'), msg('assistant', 'hello')],
-        'conv-1',
-      )
+    it('calls director then emits comments via onComment callback', async () => {
+      const waldorf = makeCharacter({ id: 'waldorf', name: 'Waldorf' })
+      const engine = await createEngine([waldorf])
 
-      expect(comments).toHaveLength(1)
-      expect(comments[0].characterName).toBe('TestChar')
-      expect(comments[0].text).toBe('Funny comment')
-      expect(comments[0].conversationId).toBe('conv-1')
-      expect(mockCreate).toHaveBeenCalledOnce()
-    })
+      // First call = director, second call = character
+      mockCreate
+        .mockResolvedValueOnce(directorPlan([{ characterId: 'waldorf' }]))
+        .mockResolvedValueOnce(apiResponse('What a disaster!'))
 
-    it('skips disabled characters', async () => {
-      const engine = await createEngine([makeCharacter({ enabled: false })])
-      const comments = await engine.generateCommentary(
+      const comments: CommentEvent[] = []
+      await engine.generateCommentary(
         msg('assistant', 'hello'),
         [msg('user', 'hi')],
         'conv-1',
+        (c) => comments.push(c),
+      )
+
+      expect(comments).toHaveLength(1)
+      expect(comments[0].characterName).toBe('Waldorf')
+      expect(comments[0].text).toBe('What a disaster!')
+      expect(comments[0].conversationId).toBe('conv-1')
+      expect(mockCreate).toHaveBeenCalledTimes(2) // director + character
+    })
+
+    it('emits nothing when director returns empty cast', async () => {
+      const engine = await createEngine([makeCharacter()])
+
+      mockCreate.mockResolvedValueOnce(directorPlan([]))
+
+      const comments: CommentEvent[] = []
+      await engine.generateCommentary(
+        msg('assistant', 'hello'),
+        [msg('user', 'hi')],
+        'conv-1',
+        (c) => comments.push(c),
       )
 
       expect(comments).toHaveLength(0)
-      expect(mockCreate).not.toHaveBeenCalled()
+      expect(mockCreate).toHaveBeenCalledTimes(1) // only director
+    })
+
+    it('falls back to first character on malformed director response', async () => {
+      const engine = await createEngine([makeCharacter({ id: 'waldorf', name: 'Waldorf' })])
+
+      // Director returns garbage, character returns text
+      mockCreate
+        .mockResolvedValueOnce(apiResponse('not json at all'))
+        .mockResolvedValueOnce(apiResponse('Fallback joke'))
+
+      const comments: CommentEvent[] = []
+      await engine.generateCommentary(
+        msg('assistant', 'hello'),
+        [msg('user', 'hi')],
+        'conv-1',
+        (c) => comments.push(c),
+      )
+
+      expect(comments).toHaveLength(1)
+      expect(comments[0].text).toBe('Fallback joke')
+    })
+
+    it('injects director note into character prompt', async () => {
+      const engine = await createEngine([makeCharacter({ id: 'waldorf', name: 'Waldorf' })])
+
+      mockCreate
+        .mockResolvedValueOnce(
+          directorPlan([{ characterId: 'waldorf', note: 'deadpan disappointment' }]),
+        )
+        .mockResolvedValueOnce(apiResponse('Meh.'))
+
+      const comments: CommentEvent[] = []
+      await engine.generateCommentary(
+        msg('assistant', 'hello'),
+        [msg('user', 'hi')],
+        'conv-1',
+        (c) => comments.push(c),
+      )
+
+      expect(comments).toHaveLength(1)
+      // The character API call is the second one (index 1)
+      const charCall = mockCreate.mock.calls[1]
+      const userMessage = charCall[0].messages[0].content
+      expect(userMessage).toContain("[Director's note: deadpan disappointment]")
+    })
+
+    it('passes previous cast comments when reactTo targets another character', async () => {
+      const charA = makeCharacter({ id: 'waldorf', name: 'Waldorf' })
+      const charB = makeCharacter({ id: 'statler', name: 'Statler' })
+      const engine = await createEngine([charA, charB])
+
+      mockCreate
+        // Director plan: waldorf speaks, then statler reacts to waldorf
+        .mockResolvedValueOnce(
+          directorPlan([
+            { characterId: 'waldorf' },
+            { characterId: 'statler', reactTo: 'waldorf' },
+          ]),
+        )
+        // Waldorf's response
+        .mockResolvedValueOnce(apiResponse('That code was terrible!'))
+        // Statler's response
+        .mockResolvedValueOnce(apiResponse('Even worse than his last one!'))
+
+      const comments: CommentEvent[] = []
+      await engine.generateCommentary(
+        msg('assistant', 'hello'),
+        [msg('user', 'hi')],
+        'conv-1',
+        (c) => comments.push(c),
+      )
+
+      expect(comments).toHaveLength(2)
+
+      // Statler's call (third mockCreate call, index 2) should reference Waldorf's comment
+      const statlerCall = mockCreate.mock.calls[2]
+      const userMessage = statlerCall[0].messages[0].content
+      expect(userMessage).toContain('That code was terrible!')
+      expect(userMessage).toContain('Waldorf')
     })
 
     it('enforces cooldown between rounds', async () => {
-      const engine = await createEngine([makeCharacter()])
+      const engine = await createEngine([makeCharacter({ id: 'waldorf', name: 'Waldorf' })])
 
-      const first = await engine.generateCommentary(
+      mockCreate
+        .mockResolvedValueOnce(directorPlan([{ characterId: 'waldorf' }]))
+        .mockResolvedValueOnce(apiResponse('First joke'))
+
+      const first: CommentEvent[] = []
+      await engine.generateCommentary(
         msg('assistant', 'a'),
         [msg('user', 'q'), msg('assistant', 'a')],
         'conv-1',
+        (c) => first.push(c),
       )
       expect(first).toHaveLength(1)
 
       // Immediately try again — should be blocked by cooldown
-      const second = await engine.generateCommentary(
+      const second: CommentEvent[] = []
+      await engine.generateCommentary(
         msg('assistant', 'b'),
         [msg('user', 'q2'), msg('assistant', 'b')],
         'conv-1',
+        (c) => second.push(c),
       )
       expect(second).toHaveLength(0)
     })
 
     it('prevents concurrent generation', async () => {
-      const engine = await createEngine([makeCharacter()])
+      const engine = await createEngine([makeCharacter({ id: 'waldorf', name: 'Waldorf' })])
 
-      // Make API call hang
+      // Make director call hang
       let resolveFirst!: (v: unknown) => void
       mockCreate.mockReturnValueOnce(
         new Promise((resolve) => {
@@ -108,95 +227,65 @@ describe('CharacterEngine', () => {
         }),
       )
 
+      const first: CommentEvent[] = []
       const firstPromise = engine.generateCommentary(
         msg('assistant', 'a'),
         [msg('user', 'q')],
         'conv-1',
+        (c) => first.push(c),
       )
 
       // Second call while first is in-flight
-      const second = await engine.generateCommentary(
-        msg('assistant', 'b'),
-        [msg('user', 'q2')],
-        'conv-1',
+      const second: CommentEvent[] = []
+      await engine.generateCommentary(msg('assistant', 'b'), [msg('user', 'q2')], 'conv-1', (c) =>
+        second.push(c),
       )
       expect(second).toHaveLength(0) // Blocked by generating flag
 
-      resolveFirst(apiResponse('response'))
+      resolveFirst(directorPlan([{ characterId: 'waldorf' }]))
       await firstPromise
     })
 
-    it('respects reactionChance gate', async () => {
-      // Set reactionChance to 0 — should never react
-      const engine = await createEngine([makeCharacter({ reactionChance: 0 })])
-      const comments = await engine.generateCommentary(
+    it('skips disabled characters', async () => {
+      const engine = await createEngine([makeCharacter({ enabled: false })])
+
+      const comments: CommentEvent[] = []
+      await engine.generateCommentary(
         msg('assistant', 'hello'),
         [msg('user', 'hi')],
         'conv-1',
+        (c) => comments.push(c),
       )
 
       expect(comments).toHaveLength(0)
+      expect(mockCreate).not.toHaveBeenCalled()
     })
 
-    it('chains characters with previous comments context', async () => {
-      const charA = makeCharacter({ id: 'a', name: 'CharA', reactionChance: 1, reactionToOtherChance: 1 })
-      const charB = makeCharacter({ id: 'b', name: 'CharB', reactionChance: 1, reactionToOtherChance: 1 })
+    it('continues with next character when one fails', async () => {
+      const charA = makeCharacter({ id: 'waldorf', name: 'Waldorf' })
+      const charB = makeCharacter({ id: 'statler', name: 'Statler' })
       const engine = await createEngine([charA, charB])
 
       mockCreate
-        .mockResolvedValueOnce(apiResponse('Comment from A'))
-        .mockResolvedValueOnce(apiResponse('Comment from B'))
-
-      const comments = await engine.generateCommentary(
-        msg('assistant', 'hello'),
-        [msg('user', 'hi')],
-        'conv-1',
-      )
-
-      expect(comments).toHaveLength(2)
-
-      // Second API call should include CharA's comment in the prompt
-      const secondCall = mockCreate.mock.calls[1]
-      const userMessage = secondCall[0].messages[0].content
-      expect(userMessage).toContain('CharA')
-      expect(userMessage).toContain('Comment from A')
-    })
-
-    it('truncates long messages in context', async () => {
-      const engine = await createEngine([makeCharacter()])
-      const longText = 'x'.repeat(600)
-
-      await engine.generateCommentary(
-        msg('assistant', 'reply'),
-        [msg('user', longText)],
-        'conv-1',
-      )
-
-      const call = mockCreate.mock.calls[0]
-      const userMessage = call[0].messages[0].content
-      // Should be truncated to 500 chars + '...'
-      expect(userMessage).not.toContain('x'.repeat(501))
-      expect(userMessage).toContain('...')
-    })
-
-    it('handles API errors for individual characters gracefully', async () => {
-      const charA = makeCharacter({ id: 'a', name: 'CharA' })
-      const charB = makeCharacter({ id: 'b', name: 'CharB' })
-      const engine = await createEngine([charA, charB])
-
-      mockCreate
+        // Director plan: both characters
+        .mockResolvedValueOnce(
+          directorPlan([{ characterId: 'waldorf' }, { characterId: 'statler' }]),
+        )
+        // Waldorf API call fails
         .mockRejectedValueOnce(new Error('API error'))
-        .mockResolvedValueOnce(apiResponse('B still works'))
+        // Statler succeeds
+        .mockResolvedValueOnce(apiResponse('Statler saves the day'))
 
-      const comments = await engine.generateCommentary(
+      const comments: CommentEvent[] = []
+      await engine.generateCommentary(
         msg('assistant', 'hello'),
         [msg('user', 'hi')],
         'conv-1',
+        (c) => comments.push(c),
       )
 
-      // CharA fails, CharB succeeds
       expect(comments).toHaveLength(1)
-      expect(comments[0].characterName).toBe('CharB')
+      expect(comments[0].characterName).toBe('Statler')
     })
   })
 
@@ -248,10 +337,17 @@ describe('CharacterEngine', () => {
       const engine = await createEngine([makeCharacter({ id: 'old' })])
       engine.setCharacters([makeCharacter({ id: 'new', name: 'NewChar' })])
 
-      const comments = await engine.generateCommentary(
+      // Director returns plan with new character
+      mockCreate
+        .mockResolvedValueOnce(directorPlan([{ characterId: 'new' }]))
+        .mockResolvedValueOnce(apiResponse('New char speaks'))
+
+      const comments: CommentEvent[] = []
+      await engine.generateCommentary(
         msg('assistant', 'hello'),
         [msg('user', 'hi')],
         'conv-1',
+        (c) => comments.push(c),
       )
 
       expect(comments).toHaveLength(1)

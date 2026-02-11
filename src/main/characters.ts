@@ -1,5 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { Message, CharacterConfig, CommentEvent } from '../shared/types'
+import type { Message, CharacterConfig, CommentEvent, DirectorCastEntry } from '../shared/types'
+import { parseDirectorPlan, buildDirectorMessages } from './director'
+import type { RoundHistory } from './director'
 
 const MODEL = 'claude-haiku-4-5-20251001'
 const MAX_CONTEXT_MESSAGES = 8
@@ -12,6 +14,7 @@ export class CharacterEngine {
   private cooldownMs: number = 10000
   private roundCounter: number = 0
   private generating: boolean = false
+  private roundHistory: RoundHistory[] = []
 
   constructor(apiKey: string, characters: CharacterConfig[]) {
     this.client = new Anthropic({ apiKey })
@@ -22,22 +25,30 @@ export class CharacterEngine {
     this.characters = characters
   }
 
+  resetHistory(): void {
+    this.roundHistory = []
+  }
+
   async generateCommentary(
     _newMessage: Message,
     recentMessages: Message[],
     conversationId: string,
-  ): Promise<CommentEvent[]> {
+    onComment: (comment: CommentEvent) => void,
+  ): Promise<void> {
     // Enforce cooldown and prevent concurrent generation
     const now = Date.now()
     if (this.generating || now - this.lastCommentTime < this.cooldownMs) {
-      return []
+      return
     }
+
+    const enabled = this.characters.filter((c) => c.enabled !== false)
+    if (enabled.length === 0) return
 
     this.generating = true
     this.roundCounter++
     const roundId = `round-${this.roundCounter}`
-    const comments: CommentEvent[] = []
-    const previousComments: { character: string; text: string }[] = []
+    const commentsByCharId: Record<string, string> = {}
+    let emittedCount = 0
 
     try {
       // Trim context
@@ -47,18 +58,50 @@ export class CharacterEngine {
           m.text.length > MAX_MESSAGE_CHARS ? m.text.slice(0, MAX_MESSAGE_CHARS) + '...' : m.text,
       }))
 
-      for (const character of this.characters) {
-        if (character.enabled === false) continue
+      // Build roster for the director
+      const roster = enabled.map((c) => ({ id: c.id, name: c.name, summary: c.summary || c.name }))
+      const enabledIds = enabled.map((c) => c.id)
 
-        // Gate check: first character uses reactionChance, subsequent use reactionToOtherChance if there are previous comments
-        const chance =
-          previousComments.length > 0 ? character.reactionToOtherChance : character.reactionChance
-        if (Math.random() >= chance) {
-          continue
+      // Ask the director who speaks
+      let plan
+      try {
+        const directorMessages = buildDirectorMessages(context, roster, this.roundHistory)
+        const response = await this.client.messages.create({
+          model: MODEL,
+          max_tokens: 200,
+          temperature: 0.8,
+          system: directorMessages.systemPrompt,
+          messages: [{ role: 'user', content: directorMessages.userMessage }],
+        })
+        const block = response.content[0]
+        const raw = block.type === 'text' ? block.text : ''
+        plan = parseDirectorPlan(raw, enabledIds)
+      } catch {
+        // Director API failed — fall back to first enabled character
+        plan = {
+          cast: [{ characterId: enabledIds[0], reactTo: 'conversation' as const, note: '' }],
+        }
+      }
+
+      if (plan.cast.length === 0) return
+
+      // Execute the cast plan sequentially
+      for (let i = 0; i < plan.cast.length; i++) {
+        const entry = plan.cast[i]
+        const character = enabled.find((c) => c.id === entry.characterId)
+        if (!character) continue
+
+        if (i > 0) {
+          await this.jitterDelay()
         }
 
         try {
-          const text = await this.generateComment(character, context, previousComments)
+          const text = await this.generateDirectedComment(
+            character,
+            context,
+            entry,
+            commentsByCharId,
+          )
           if (text) {
             const event: CommentEvent = {
               id: `${roundId}-${character.id}`,
@@ -71,19 +114,28 @@ export class CharacterEngine {
               roundId,
               timestamp: Date.now(),
             }
-            comments.push(event)
-            previousComments.push({ character: character.name, text })
+            onComment(event)
+            commentsByCharId[character.id] = text
+            emittedCount++
           }
         } catch (err) {
           console.error(`[${character.name}] API error:`, err)
         }
       }
 
-      if (comments.length > 0) {
+      if (emittedCount > 0) {
         this.lastCommentTime = Date.now()
       }
 
-      return comments
+      // Track this round in history (cap at 3)
+      const roundComments = Object.entries(commentsByCharId).map(([charId, text]) => {
+        const char = enabled.find((c) => c.id === charId)
+        return { character: char?.name || charId, text }
+      })
+      this.roundHistory.push({ comments: roundComments })
+      if (this.roundHistory.length > 3) {
+        this.roundHistory = this.roundHistory.slice(-3)
+      }
     } finally {
       this.generating = false
     }
@@ -182,20 +234,26 @@ Rules:
     return null
   }
 
-  private async generateComment(
+  private async generateDirectedComment(
     character: CharacterConfig,
     recentMessages: Message[],
-    previousComments: { character: string; text: string }[],
+    entry: DirectorCastEntry,
+    commentsByCharId: Record<string, string>,
   ): Promise<string> {
     const conversationContext = recentMessages.map((m) => `[${m.role}]: ${m.text}`).join('\n\n')
 
     let userPrompt = `Here's the recent conversation you're watching:\n\n${conversationContext}`
 
-    if (previousComments.length > 0) {
-      const otherComments = previousComments.map((c) => `${c.character}: "${c.text}"`).join('\n')
-      userPrompt += `\n\nYour fellow hecklers just said:\n${otherComments}\n\nReact to the conversation and/or riff off what they said.`
+    if (entry.reactTo !== 'conversation' && commentsByCharId[entry.reactTo]) {
+      const targetChar = this.characters.find((c) => c.id === entry.reactTo)
+      const targetName = targetChar?.name || entry.reactTo
+      userPrompt += `\n\n${targetName} just said: "${commentsByCharId[entry.reactTo]}"\n\nRiff off what they said.`
     } else {
       userPrompt += `\n\nGive your commentary on this conversation.`
+    }
+
+    if (entry.note) {
+      userPrompt += `\n\n[Director's note: ${entry.note}]`
     }
 
     const response = await this.client.messages.create({
@@ -211,5 +269,10 @@ Rules:
       return block.text.trim()
     }
     return ''
+  }
+
+  protected async jitterDelay(): Promise<void> {
+    const ms = 1000 + Math.random() * 2000
+    return new Promise((resolve) => setTimeout(resolve, ms))
   }
 }
