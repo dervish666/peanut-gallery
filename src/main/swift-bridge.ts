@@ -29,8 +29,10 @@ interface QueuedCommand {
 }
 
 const COMMAND_TIMEOUT_MS = 10000
-const MAX_RESTART_ATTEMPTS = 3
+const MAX_RESTART_ATTEMPTS = 10
 const RESTART_BACKOFF_MS = 2000
+const RESTART_BACKOFF_CAP_MS = 15000
+const RESTART_DECAY_MS = 60000 // reset restart counter if last crash was >60s ago
 
 export class SwiftBridge extends EventEmitter {
   private process: ChildProcess | null = null
@@ -40,6 +42,7 @@ export class SwiftBridge extends EventEmitter {
   private destroyed = false
   private restartCount = 0
   private restarting = false
+  private lastCrashTime = 0
 
   private getBinaryPath(): string {
     if (is.dev) {
@@ -118,6 +121,15 @@ export class SwiftBridge extends EventEmitter {
 
   private attemptRestart(): void {
     if (this.destroyed || this.restarting) return
+
+    // If it's been a while since the last crash, this isn't a crash loop —
+    // reset counter (handles sleep/wake recovery gracefully)
+    const now = Date.now()
+    if (this.lastCrashTime > 0 && now - this.lastCrashTime > RESTART_DECAY_MS) {
+      this.restartCount = 0
+    }
+    this.lastCrashTime = now
+
     if (this.restartCount >= MAX_RESTART_ATTEMPTS) {
       console.error(`[ax-reader] Max restart attempts (${MAX_RESTART_ATTEMPTS}) reached, giving up`)
       this.emit('fatal', new Error('Swift helper crashed too many times'))
@@ -126,7 +138,7 @@ export class SwiftBridge extends EventEmitter {
 
     this.restarting = true
     this.restartCount++
-    const delay = RESTART_BACKOFF_MS * this.restartCount
+    const delay = Math.min(RESTART_BACKOFF_MS * this.restartCount, RESTART_BACKOFF_CAP_MS)
     console.log(`[ax-reader] Restarting in ${delay}ms (attempt ${this.restartCount})`)
 
     setTimeout(() => {
