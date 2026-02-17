@@ -61,9 +61,11 @@ Compiled Swift CLI using macOS AXUIElement APIs. Runs as a child process of Elec
 
 Compares successive accessibility snapshots to detect new messages. User messages emit immediately; assistant messages use a 2-second debounce/settling timer (only emits via `onMessageSettled` callback once text stops changing). Detects conversation switches via title changes. Skips settling on "Thinking..." messages — waits for the actual response to arrive.
 
-### 3. Character Engine (`src/main/characters.ts`)
+### 3. Character Engine (`src/main/characters.ts` + `src/main/director.ts`)
 
-Manages AI personas (Waldorf, Statler, Dave). A Comedy Director (single Haiku call) decides who speaks each round, in what order, and what they react to — or whether everyone stays silent. Characters are then called sequentially per the director's plan, with 1-3s jitter between emissions. Director provides creative direction notes injected into each character's prompt. Round history (last 3 rounds) gives the director context to vary pacing and avoid patterns. 10-second minimum cooldown between rounds. Context limited to last 8 messages, responses capped at ~150 tokens. Also provides `roastTitle(rawTitle)` — generates a one-liner roast of the conversation title (fired immediately on conversation switch).
+Manages AI personas (Waldorf, Statler, Dave). A Comedy Director (`director.ts`, single Haiku call) decides who speaks each round, in what order, and what they react to — or whether everyone stays silent. The director outputs a JSON cast plan: `{ cast: [{ characterId, reactTo, note }] }`. Characters are then called sequentially per the plan, with 1-3s jitter between emissions. Director provides creative direction notes injected into each character's prompt. Round history (last 3 rounds) gives the director context to vary pacing and avoid patterns. Uses callback-based emission (`onComment`) for staggered delivery. 10-second minimum cooldown between rounds. Context limited to last 8 messages, responses capped per character `maxTokens`. Also provides `roastTitle(rawTitle)` and `generateIntro()`.
+
+**LLM parsing note:** Haiku often wraps JSON in markdown code fences (`` ```json...``` ``). The director parser strips these before `JSON.parse`. On parse failure, falls back to first enabled character reacting to conversation.
 
 ### 4. Overlay UI (`src/renderer/`)
 
@@ -71,7 +73,9 @@ React 18 + TypeScript + Tailwind CSS v4 + Framer Motion. Frameless, always-on-to
 
 ### 5. Main Process Orchestration (`src/main/index.ts`)
 
-Ties everything together. Hidden from Dock/Cmd+Tab via `app.dock.hide()`. Uses event-driven focus tracking: the Swift bridge pushes `app-activated` events, and the main process shows the overlay (floating + showInactive) when Claude Desktop activates, hides it when another app activates, and ignores self-activation (clicking the overlay). Polls Claude Desktop every 3s for conversation content. On conversation switch: emits `NowShowingEvent` with `roast: null` (banner appears immediately), then fires `roastTitle()` async and emits again with the roast string when ready. The differ's `onMessageSettled` callback triggers commentary generation.
+Ties everything together. Hidden from Dock/Cmd+Tab via `app.dock.hide()`. Uses event-driven focus tracking: the Swift bridge pushes `app-activated` events, and the main process shows the overlay (floating + showInactive) when Claude Desktop activates, hides it when another app activates, and ignores self-activation via PID comparison (clicking the overlay doesn't hide it). Polls Claude Desktop every 3s for conversation content. On conversation switch: clears comments, emits `NowShowingEvent` with `roast: null` (banner appears immediately), then fires `roastTitle()` async and emits again with the roast string when ready. The differ's `onMessageSettled` callback triggers commentary generation.
+
+**SwiftBridge resilience:** Auto-restarts ax-reader on crash (up to 10 attempts). Backoff starts at 2s, caps at 15s. Restart counter resets after 60s of stability — handles sleep/wake recovery without exhausting attempts in a crash loop.
 
 ## Project Structure
 
@@ -131,7 +135,7 @@ src/renderer/src/hooks/useSettings.ts - Loads/saves settings from/to main proces
 
 ## Key Technical Details
 
-- **IPC channels (main→renderer)**: `comment:new`, `now-showing:update`, `status:update`
+- **IPC channels (main→renderer)**: `comment:new`, `comments:clear`, `now-showing:update`, `status:update`
 - **IPC channels (renderer→main)**: `settings:get`, `settings:set`, `characters:get-presets` (invoke); `window:minimize` (send)
 - **Accessibility tree navigation**: Don't traverse the full tree. Navigate directly: Window → AXWebArea[1] (non-empty title) → `#main-content` → `.overflow-y-scroll` → message groups
 - **User messages**: identified by `!font-user-message` class; text in `whitespace-pre-wrap break-words` groups
